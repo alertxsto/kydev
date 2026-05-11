@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  TbDeviceDesktop, TbCpu, TbServer, TbClock,
-  TbTerminal2, TbHeartbeat, TbCpu2, TbDeviceAnalytics,
+  TbDeviceDesktop, TbCpu, TbServer,
+  TbTerminal2, TbHeartbeat, TbDeviceAnalytics,
   TbDeviceFloppy, TbPackage, TbAlertTriangle,
+  TbGitCommit, TbRefresh,
 } from "react-icons/tb";
 
 interface SystemInfo {
@@ -14,6 +15,21 @@ interface SystemInfo {
 }
 
 interface UpdateInfo { count: number; has_updates: boolean }
+
+function formatUptime(raw: string): string {
+  const days = Math.floor(Number(raw) / 86400);
+  const hours = Math.floor((Number(raw) % 86400) / 3600);
+  const mins = Math.floor((Number(raw) % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function miniCpu(cpu: string): string {
+  const match = cpu.match(/model name\s*:\s*(.+)/i);
+  if (match) return match[1].replace(/\s+/g, " ").trim();
+  return cpu.length > 50 ? cpu.slice(0, 50) + "…" : cpu;
+}
 
 export default function Dashboard() {
   const [info, setInfo] = useState<SystemInfo | null>(null);
@@ -43,107 +59,123 @@ export default function Dashboard() {
     );
   }
 
-  const metricIcons: Record<string, React.ReactNode> = {
-    OS: <TbDeviceDesktop size={20} />,
-    Kernel: <TbCpu size={20} />,
-    Hostname: <TbServer size={20} />,
-    Uptime: <TbClock size={20} />,
-    Shell: <TbTerminal2 size={20} />,
-    DE: <TbHeartbeat size={20} />,
-  };
+  const pct = (v?: number) => v ?? 0;
+  const memPct = pct(info?.memory_pct);
+  const diskPct = pct(info?.disk_pct);
 
-  const metrics = [
-    { label: "OS", value: info?.os ?? "-" },
-    { label: "Kernel", value: info?.kernel ?? "-" },
-    { label: "Hostname", value: info?.hostname ?? "-" },
-    { label: "Uptime", value: info?.uptime ?? "-" },
-    { label: "Shell", value: info?.shell ?? "-" },
-    { label: "DE", value: info?.de ?? "-" },
+  const memBar = memPct > 80 ? "progress-error" : memPct > 60 ? "progress-warning" : "progress-success";
+  const diskBar = diskPct > 80 ? "progress-error" : diskPct > 60 ? "progress-warning" : "progress-success";
+
+  const sysChips = [
+    { icon: TbDeviceDesktop, label: info?.os ?? "—" },
+    { icon: TbTerminal2, label: info?.shell ?? "—" },
+    { icon: TbHeartbeat, label: info?.de ?? "—" },
+    { icon: TbGitCommit, label: info?.kernel ?? "—" },
+  ];
+
+  const resources = [
+    {
+      icon: TbCpu, title: "CPU", color: "from-sky-500/20 to-sky-600/5",
+      textColor: "text-sky-400", body: miniCpu(info?.cpu ?? ""),
+      extra: null,
+    },
+    {
+      icon: TbDeviceAnalytics, title: "Memory", color: "from-violet-500/20 to-violet-600/5",
+      textColor: "text-violet-400",
+      body: `${info?.memory_used} / ${info?.memory_total}`,
+      pct: memPct, bar: memBar,
+    },
+    {
+      icon: TbDeviceFloppy, title: "Disk", color: "from-amber-500/20 to-amber-600/5",
+      textColor: "text-amber-400",
+      body: `${info?.disk_used} / ${info?.disk_total}`,
+      pct: diskPct, bar: diskBar,
+    },
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Dashboard</h2>
-        <p className="text-sm text-neutral-content/50 mt-1">System overview at a glance</p>
+    <div className="p-6 space-y-5 max-w-5xl">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-sm text-base-content/50 mt-0.5">
+            {info?.hostname ?? "system"} &middot; up {formatUptime(info?.uptime ?? "0")}
+          </p>
+        </div>
+        <div className="badge badge-soft badge-primary gap-1.5 py-3 px-3">
+          <TbServer size={14} />
+          {info?.packages ?? 0} packages
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {metrics.map((m) => (
-          <div key={m.label} className="stat bg-base-200 rounded-box p-3">
-            <div className="stat-figure text-primary opacity-70">{metricIcons[m.label]}</div>
-            <div className="stat-title text-xs text-neutral-content/50">{m.label}</div>
-            <div className="stat-value text-sm font-bold mt-1 truncate">{m.value}</div>
+      {/* ── System Chips ── */}
+      <div className="flex flex-wrap gap-2">
+        {sysChips.map((c) => (
+          <div key={c.label} className="badge badge-soft badge-ghost gap-1.5 py-3 px-3 text-xs font-normal">
+            <c.icon size={14} className="text-base-content/60" />
+            {c.label}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-base-200 rounded-box p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <TbCpu2 className="text-lg text-primary" />
-            <span className="font-semibold">CPU</span>
+      {/* ── Resource Cards ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {resources.map((r) => (
+          <div
+            key={r.title}
+            className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden"
+          >
+            <div className={`absolute inset-0 bg-gradient-to-br ${r.color} pointer-events-none`} />
+            <div className="relative p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className={r.textColor}>{r.icon({ size: 20 })}</span>
+                <span className="font-semibold text-sm">{r.title}</span>
+              </div>
+              <p className="text-xs text-base-content/70 leading-relaxed">{r.body}</p>
+              {r.pct != null && (
+                <div className="space-y-1 pt-1">
+                  <progress
+                    className={`progress w-full h-2 ${r.bar}`}
+                    value={r.pct}
+                    max="100"
+                  />
+                  <p className="text-xs text-right text-base-content/40">{r.pct}%</p>
+                </div>
+              )}
+            </div>
           </div>
-          <p className="text-sm text-neutral-content/70">{info?.cpu ?? "-"}</p>
-        </div>
+        ))}
+      </div>
 
-        <div className="bg-base-200 rounded-box p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <TbDeviceAnalytics className="text-lg text-primary" />
-            <span className="font-semibold">Memory</span>
-          </div>
-          <p className="text-sm text-neutral-content/70 mb-2">
-            {info?.memory_used} / {info?.memory_total}
-          </p>
-          <progress
-            className={`progress w-full ${(info?.memory_pct ?? 0) > 80 ? "progress-error" : (info?.memory_pct ?? 0) > 60 ? "progress-warning" : "progress-success"}`}
-            value={info?.memory_pct ?? 0}
-            max="100"
-          />
-          <p className="text-xs text-right mt-1 text-neutral-content/50">{info?.memory_pct}%</p>
-        </div>
-
-        <div className="bg-base-200 rounded-box p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <TbDeviceFloppy className="text-lg text-primary" />
-            <span className="font-semibold">Disk</span>
-          </div>
-          <p className="text-sm text-neutral-content/70 mb-2">
-            {info?.disk_used} / {info?.disk_total}
-          </p>
-          <progress
-            className={`progress w-full ${(info?.disk_pct ?? 0) > 80 ? "progress-error" : (info?.disk_pct ?? 0) > 60 ? "progress-warning" : "progress-success"}`}
-            value={info?.disk_pct ?? 0}
-            max="100"
-          />
-          <p className="text-xs text-right mt-1 text-neutral-content/50">{info?.disk_pct}%</p>
-        </div>
-
+      {/* ── Updates ── */}
+      {updates && (
         <div
-          className={`bg-base-200 rounded-box p-4 cursor-pointer ${updates?.has_updates ? "border border-warning/30" : ""}`}
+          className={`relative rounded-2xl border overflow-hidden cursor-pointer transition hover:brightness-105 ${
+            updates.has_updates
+              ? "border-warning/30 bg-warning/5"
+              : "border-success/20 bg-success/5"
+          }`}
           onClick={() => window.location.hash = "#system"}
         >
-          <div className="flex items-center gap-2 mb-3">
-            {updates?.has_updates ? (
-              <TbAlertTriangle className="text-lg text-warning" />
-            ) : (
-              <TbPackage className="text-lg text-success" />
-            )}
-            <span className="font-semibold">Updates</span>
+          <div className="p-4 flex items-center gap-4">
+            <div className={`p-2 rounded-xl ${updates.has_updates ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
+              {updates.has_updates ? <TbAlertTriangle size={24} /> : <TbPackage size={24} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold">
+                {updates.has_updates
+                  ? `${updates.count} update${updates.count > 1 ? "s" : ""} available`
+                  : "System is up to date"}
+              </p>
+              <p className="text-xs text-base-content/50 mt-0.5">
+                {updates.has_updates ? "Click to view and install" : `Based on ${info?.packages ?? 0} installed packages`}
+              </p>
+            </div>
+            <TbRefresh size={18} className="text-base-content/30 shrink-0" />
           </div>
-          {updates?.has_updates ? (
-            <>
-              <p className="text-sm text-warning font-bold">{updates.count} packages</p>
-              <p className="text-xs text-neutral-content/50 mt-1">Updates available — click to view</p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-success font-bold">{info?.packages ?? 0} packages</p>
-              <p className="text-xs text-success/70 mt-1">System is up to date</p>
-            </>
-          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
