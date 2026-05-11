@@ -75,26 +75,43 @@ npm run tauri build 2>&1 | sed -e "s/^/    ${B_YELLOW}│${NC}  /"
 success "Rust binary compiled successfully."
 
 info "Elevating Privileges"
-if sudo -n true 2>/dev/null; then
-    step "Moving binary to /usr/local/bin for global access..."
+if [ -f /usr/local/bin/kydev ]; then
+    INSTALL_TYPE="system"
+elif [ -f "${HOME}/.local/bin/kydev" ]; then
+    INSTALL_TYPE="user"
+elif sudo -n true 2>/dev/null || command -v pkexec >/dev/null 2>&1; then
+    INSTALL_TYPE="system"
+else
+    INSTALL_TYPE="user"
+fi
+
+if [ "$INSTALL_TYPE" = "system" ]; then
+    step "Installing to /usr/local/bin (system-wide)..."
     sudo cp -f "$HOME/.kydev/src-tauri/target/release/kydev" /usr/local/bin/kydev.new
     sudo mv -f /usr/local/bin/kydev.new /usr/local/bin/kydev
     step "Registering Desktop Application Menu..."
     sudo cp "$HOME/.kydev/src-tauri/icons/128x128.png" /usr/share/pixmaps/kydev.png
     sudo cp "$HOME/.kydev/kydev.desktop" /usr/share/applications/kydev.desktop
     sudo update-desktop-database /usr/share/applications || true
+    # cleanup user-level leftovers
+    rm -f "${HOME}/.local/bin/kydev" "${HOME}/.local/bin/kydev.new" 2>/dev/null || true
+    rm -f "${HOME}/.local/share/applications/kydev.desktop" 2>/dev/null || true
+    rm -f "${HOME}/.local/share/icons/kydev.png" 2>/dev/null || true
 else
-    echo -e "${B_YELLOW}│${NC}  Menggunakan instalasi user-level (tanpa sudo)..."
+    echo -e "${B_YELLOW}│${NC}  Menggunakan instalasi user-level (~/.local/bin)..."
     mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/applications" "${HOME}/.local/share/icons"
     cp -f src-tauri/target/release/kydev "${HOME}/.local/bin/kydev.new"
     mv -f "${HOME}/.local/bin/kydev.new" "${HOME}/.local/bin/kydev"
     chmod +x "${HOME}/.local/bin/kydev"
     cp src-tauri/icons/128x128.png "${HOME}/.local/share/icons/kydev.png"
-    cp kydev.desktop "${HOME}/.local/share/applications/kydev.desktop"
-    sed -i "s|Exec=/usr/local/bin/kydev|Exec=${HOME}/.local/bin/kydev|g" "${HOME}/.local/share/applications/kydev.desktop"
-    sed -i "s|Icon=kydev|Icon=${HOME}/.local/share/icons/kydev.png|g" "${HOME}/.local/share/applications/kydev.desktop"
+    sed "s|Exec=/usr/local/bin/kydev|Exec=${HOME}/.local/bin/kydev|g; s|Icon=kydev|Icon=${HOME}/.local/share/icons/kydev.png|g" kydev.desktop > "${HOME}/.local/share/applications/kydev.desktop"
     chmod 644 "${HOME}/.local/share/applications/kydev.desktop"
     update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+    # cleanup system-level leftovers (best-effort, no password required)
+    sudo rm -f /usr/local/bin/kydev /usr/local/bin/kydev.new 2>/dev/null || true
+    sudo rm -f /usr/share/applications/kydev.desktop 2>/dev/null || true
+    sudo rm -f /usr/share/pixmaps/kydev.png 2>/dev/null || true
+    sudo update-desktop-database /usr/share/applications 2>/dev/null || true
     echo -e "${B_CYAN}│${NC}  Tambahkan ${B_MAGENTA}${HOME}/.local/bin${B_CYAN} ke PATH jika belum."
 fi
 

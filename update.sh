@@ -60,24 +60,48 @@ npm run tauri build 2>&1 | sed -e "s/^/    ${B_YELLOW}│${NC}  /"
 success "Binary successfully forged."
 
 info "Deploying Updates"
-step "Applying updates to system binary & launcher (Password may be required)..."
-if command -v pkexec >/dev/null 2>&1; then
-    pkexec bash -c "cp -f $HOME/.kydev/src-tauri/target/release/kydev /usr/local/bin/kydev.new && mv -f /usr/local/bin/kydev.new /usr/local/bin/kydev && cp -f $HOME/.kydev/src-tauri/icons/128x128.png /usr/share/pixmaps/kydev.png && cp -f $HOME/.kydev/kydev.desktop /usr/share/applications/kydev.desktop && update-desktop-database /usr/share/applications"
+step "Detecting current installation..."
+if [ -f /usr/local/bin/kydev ]; then
+    step "Found system-wide install, updating /usr/local/bin/kydev..."
+    pkexec bash -c "
+      cp -f $HOME/.kydev/src-tauri/target/release/kydev /usr/local/bin/kydev.new
+      mv -f /usr/local/bin/kydev.new /usr/local/bin/kydev
+      cp -f $HOME/.kydev/src-tauri/icons/128x128.png /usr/share/pixmaps/kydev.png
+      cp -f $HOME/.kydev/kydev.desktop /usr/share/applications/kydev.desktop
+      update-desktop-database /usr/share/applications
+    " 2>&1 | sed -e "s/^/    ${B_YELLOW}│${NC}  /"
+    # cleanup user-level leftovers silently
+    rm -f "${HOME}/.local/bin/kydev" "${HOME}/.local/bin/kydev.new" 2>/dev/null || true
+    rm -f "${HOME}/.local/share/applications/kydev.desktop" 2>/dev/null || true
+    rm -f "${HOME}/.local/share/icons/kydev.png" 2>/dev/null || true
     success "Global binary and launcher replaced."
-else
-    echo -e "${B_YELLOW}│${NC}  pkexec not found, using user-level installation..."
+elif [ -f "${HOME}/.local/bin/kydev" ]; then
+    step "Found user-level install, updating ~/.local/bin/kydev..."
     mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/applications" "${HOME}/.local/share/icons"
     cp -f src-tauri/target/release/kydev "${HOME}/.local/bin/kydev.new"
     mv -f "${HOME}/.local/bin/kydev.new" "${HOME}/.local/bin/kydev"
     chmod +x "${HOME}/.local/bin/kydev"
     cp src-tauri/icons/128x128.png "${HOME}/.local/share/icons/kydev.png"
-    cp kydev.desktop "${HOME}/.local/share/applications/kydev.desktop"
-    sed -i "s|Exec=/usr/local/bin/kydev|Exec=${HOME}/.local/bin/kydev|g" "${HOME}/.local/share/applications/kydev.desktop"
-    sed -i "s|Icon=kydev|Icon=${HOME}/.local/share/icons/kydev.png|g" "${HOME}/.local/share/applications/kydev.desktop"
+    sed "s|Exec=/usr/local/bin/kydev|Exec=${HOME}/.local/bin/kydev|g; s|Icon=kydev|Icon=${HOME}/.local/share/icons/kydev.png|g" kydev.desktop > "${HOME}/.local/share/applications/kydev.desktop"
     chmod 644 "${HOME}/.local/share/applications/kydev.desktop"
     update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+    # cleanup system-level leftovers (best-effort)
+    sudo rm -f /usr/local/bin/kydev /usr/local/bin/kydev.new 2>/dev/null || true
+    sudo rm -f /usr/share/applications/kydev.desktop 2>/dev/null || true
+    sudo rm -f /usr/share/pixmaps/kydev.png 2>/dev/null || true
+    sudo update-desktop-database /usr/share/applications 2>/dev/null || true
     success "User-level binary and launcher replaced."
     echo -e "${B_CYAN}│${NC}  Tambahkan ${B_MAGENTA}${HOME}/.local/bin${B_CYAN} ke PATH jika belum."
+else
+    echo -e "${B_YELLOW}│${NC}  No previous install found, using system-wide by default..."
+    pkexec bash -c "
+      cp -f $HOME/.kydev/src-tauri/target/release/kydev /usr/local/bin/kydev.new
+      mv -f /usr/local/bin/kydev.new /usr/local/bin/kydev
+      cp -f $HOME/.kydev/src-tauri/icons/128x128.png /usr/share/pixmaps/kydev.png
+      cp -f $HOME/.kydev/kydev.desktop /usr/share/applications/kydev.desktop
+      update-desktop-database /usr/share/applications
+    " 2>&1 | sed -e "s/^/    ${B_YELLOW}│${NC}  /"
+    success "Global binary and launcher installed."
 fi
 
 echo -e "\n${B_GREEN}   ╔═══════════════════════════════════════════════════╗${NC}"
