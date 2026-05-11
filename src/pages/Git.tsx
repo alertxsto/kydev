@@ -2,21 +2,21 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import DirInput from "../components/DirInput";
 import {
-  TbGitBranch, TbGitCommit, TbArrowUp, TbArrowDown,
+  TbGitBranch, TbGitCommit, TbArrowUpToArc, TbArrowDownToArc,
   TbRefresh, TbCirclePlus, TbCircleMinus, TbCode,
-  TbHistory, TbListTree,
+  TbHistory, TbListTree, TbFolderOpen, TbX,
 } from "react-icons/tb";
 
 interface GitStatusFile { path: string; status: string; staged: boolean; }
 interface GitLogEntry { hash: string; author: string; message: string; date: string; }
 interface GitBranchInfo { name: string; current: boolean; remote: string; }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  M: { label: "Modified", color: "text-warning" },
-  A: { label: "Added", color: "text-success" },
-  D: { label: "Deleted", color: "text-error" },
-  R: { label: "Renamed", color: "text-info" },
-  "?": { label: "Untracked", color: "text-base-content/50" },
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  M: { label: "Modified", color: "text-warning", bg: "bg-warning/10" },
+  A: { label: "Added", color: "text-success", bg: "bg-success/10" },
+  D: { label: "Deleted", color: "text-error", bg: "bg-error/10" },
+  R: { label: "Renamed", color: "text-info", bg: "bg-info/10" },
+  "?": { label: "Untracked", color: "text-base-content/50", bg: "bg-base-300/30" },
 };
 
 export default function Git() {
@@ -152,257 +152,354 @@ export default function Git() {
   const staged = statusFiles.filter((f) => f.staged);
   const unstaged = statusFiles.filter((f) => !f.staged);
 
-  const renderStatusIcon = (status: string) => {
-    const info = STATUS_LABELS[status] || { label: status, color: "text-base-content" };
-    return <span className={`${info.color} font-bold text-xs w-5 inline-block`} title={info.label}>{status}</span>;
+  const StatusBadge = ({ status }: { status: string }) => {
+    const m = STATUS_META[status] || { label: status, color: "text-base-content", bg: "bg-base-300/30" };
+    return <span className={`${m.bg} ${m.color} text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0`}>{status}</span>;
   };
-
-  const renderFileList = (files: GitStatusFile[], title: string, emptyMsg: string) => (
-    <div className="mb-2">
-      <div className="text-[10px] uppercase tracking-wider text-base-content/40 font-bold px-2 py-1">{title}</div>
-      {files.length === 0 ? (
-        <div className="text-[11px] text-base-content/30 px-2 py-1 italic">{emptyMsg}</div>
-      ) : (
-        files.map((f) => (
-          <div
-            key={`${f.staged ? "s" : "u"}:${f.path}`}
-            className={`flex items-center gap-1 px-2 py-1.5 cursor-pointer rounded-md text-xs hover:bg-base-200 transition-colors ${
-              selectedFile?.path === f.path && selectedFile?.staged === f.staged ? "bg-primary/10 text-primary" : ""
-            }`}
-            onClick={() => viewDiff(f)}
-          >
-            {renderStatusIcon(f.status)}
-            <span className="truncate flex-1">{f.path}</span>
-            {actionLoading === f.path ? (
-              <span className="loading loading-spinner loading-xs" />
-            ) : f.staged ? (
-              <button className="opacity-0 hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); unstageFile(f); }} title="Unstage">
-                <TbCircleMinus className="text-warning" size={14} />
-              </button>
-            ) : (
-              <button className="opacity-0 hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); stageFile(f); }} title="Stage">
-                <TbCirclePlus className="text-success" size={14} />
-              </button>
-            )}
-          </div>
-        ))
-      )}
-    </div>
-  );
 
   if (!repoPath) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-8 text-base-content">
-        <div className="p-3 rounded-2xl bg-primary/10 text-primary mb-4"><TbGitBranch size={36} /></div>
-        <h2 className="text-xl font-bold mb-1">Git GUI</h2>
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary mb-4">
+          <TbGitBranch size={40} />
+        </div>
+        <h2 className="text-xl font-bold">Git GUI</h2>
         <p className="text-sm text-base-content/50 mb-6">Open a git repository to get started</p>
         <div className="w-full max-w-md space-y-3">
           <DirInput value={inputPath} onChange={setInputPath} placeholder="~/projects/my-project" onEnter={handleOpen} />
-          <button className="btn btn-primary w-full gap-1" onClick={handleOpen} disabled={loading}>
-            {loading ? <span className="loading loading-spinner loading-xs" /> : <TbGitBranch size={14} />}
+          <button className="btn btn-primary w-full gap-1.5" onClick={handleOpen} disabled={loading}>
+            {loading ? <span className="loading loading-spinner loading-xs" /> : <TbFolderOpen size={16} />}
             Open Repository
           </button>
         </div>
         {recentRepos.length > 0 && (
           <div className="mt-6 w-full max-w-md">
-            <div className="text-[10px] uppercase tracking-wider text-base-content/40 font-bold mb-2">Recent</div>
-            <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-base-content/40 font-bold mb-2">Recent Repositories</p>
+            <div className="space-y-1.5">
               {recentRepos.map((r) => (
                 <button
                   key={r}
-                  className="w-full text-left text-xs font-mono px-3 py-2 rounded-xl hover:bg-base-200 transition-colors truncate border border-transparent hover:border-base-content/10"
+                  className="w-full text-left text-xs font-mono px-3 py-2.5 rounded-2xl bg-base-200/70 border border-base-300/40 hover:border-primary/30 hover:bg-base-200 transition-all truncate flex items-center gap-2"
                   onClick={() => { setInputPath(r); loadRepo(r); }}
                 >
+                  <TbFolderOpen size={14} className="text-primary shrink-0" />
                   {r}
                 </button>
               ))}
             </div>
           </div>
         )}
-        {error && <div className="text-xs text-error mt-3">{error}</div>}
+        {error && <div className="text-xs text-error mt-3 bg-error/10 px-3 py-2 rounded-xl">{error}</div>}
       </div>
     );
   }
 
   return (
     <div className="h-full flex flex-col">
-      {/* Top bar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-base-content/10 bg-base-200/70 shrink-0">
+      {/* Top Bar */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-base-content/10 bg-base-200/70 shrink-0">
+        <TbFolderOpen size={14} className="text-base-content/40 shrink-0" />
         <input
-          className="input input-ghost input-xs font-mono flex-1 text-xs"
+          className="input input-ghost input-xs font-mono flex-1 text-xs bg-transparent"
           value={inputPath}
           onChange={(e) => setInputPath(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleOpen()}
         />
-        <div className="flex items-center gap-1 px-2 text-xs font-mono">
-          <TbGitBranch className="text-primary" size={14} />
-          <span className="text-primary font-semibold">{branch}</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20">
+          <TbGitBranch size={12} className="text-primary" />
+          <span className="text-[11px] font-semibold text-primary">{branch}</span>
         </div>
         <div className="flex gap-1">
-          <button className="btn btn-ghost btn-xs gap-1" onClick={pull} disabled={actionLoading === "pull"} title="Pull">
-            {actionLoading === "pull" ? <span className="loading loading-spinner loading-xs" /> : <TbArrowDown size={14} />}
-            <span className="hidden sm:inline">Pull</span>
+          <button className="btn btn-ghost btn-xs btn-square" onClick={pull} disabled={actionLoading === "pull"} title="Pull">
+            {actionLoading === "pull" ? <span className="loading loading-spinner loading-xs" /> : <TbArrowDownToArc size={14} />}
           </button>
-          <button className="btn btn-ghost btn-xs gap-1" onClick={push} disabled={actionLoading === "push"} title="Push">
-            {actionLoading === "push" ? <span className="loading loading-spinner loading-xs" /> : <TbArrowUp size={14} />}
-            <span className="hidden sm:inline">Push</span>
+          <button className="btn btn-ghost btn-xs btn-square" onClick={push} disabled={actionLoading === "push"} title="Push">
+            {actionLoading === "push" ? <span className="loading loading-spinner loading-xs" /> : <TbArrowUpToArc size={14} />}
           </button>
         </div>
       </div>
 
+      {/* Main */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: file list */}
-        <div className="w-72 border-r border-base-content/10 overflow-y-auto bg-base-300/30 shrink-0">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-base-content/10 bg-base-200/50">
+        {/* Sidebar: File List */}
+        <div className="w-72 border-r border-base-content/10 overflow-y-auto bg-base-300/20 shrink-0">
+          <div className="flex items-center justify-between px-3 py-2.5 border-b border-base-content/10">
             <span className="text-[10px] uppercase tracking-wider text-base-content/50 font-bold">Changes</span>
             <div className="flex gap-0.5">
-              <button className="btn btn-ghost btn-xs" onClick={stageAll} disabled={actionLoading === "all" || unstaged.length === 0} title="Stage All">
-                <TbCirclePlus size={12} className="text-success" />
-              </button>
-              <button className="btn btn-ghost btn-xs" onClick={unstageAll} disabled={actionLoading === "all" || staged.length === 0} title="Unstage All">
-                <TbCircleMinus size={12} className="text-warning" />
-              </button>
-              <button className="btn btn-ghost btn-xs" onClick={refreshStatus} title="Refresh">
+              <button className="btn btn-ghost btn-xs btn-square" onClick={refreshStatus} title="Refresh">
                 <TbRefresh size={12} />
               </button>
             </div>
           </div>
-          <div className="p-2">
+          <div className="p-2 space-y-3">
+            {/* Quick actions */}
+            {(staged.length > 0 || unstaged.length > 0) && (
+              <div className="flex gap-1 px-1">
+                <button className="btn btn-ghost btn-xs gap-1 text-success" onClick={stageAll} disabled={actionLoading === "all" || unstaged.length === 0}>
+                  {actionLoading === "all" ? <span className="loading loading-spinner loading-xs" /> : <TbCirclePlus size={12} />}
+                  Stage All
+                </button>
+                <button className="btn btn-ghost btn-xs gap-1 text-warning" onClick={unstageAll} disabled={actionLoading === "all" || staged.length === 0}>
+                  <TbCircleMinus size={12} />
+                  Unstage All
+                </button>
+              </div>
+            )}
+
             {loading ? (
               <div className="flex justify-center py-8"><span className="loading loading-spinner loading-sm" /></div>
             ) : statusFiles.length === 0 ? (
               <div className="text-[11px] text-base-content/30 text-center py-8 italic">Working tree clean</div>
             ) : (
               <>
-                {renderFileList(staged, `Staged (${staged.length})`, "No staged files")}
-                {staged.length > 0 && unstaged.length > 0 && <div className="border-t border-base-content/10 mx-2 my-1" />}
-                {renderFileList(unstaged, `Unstaged (${unstaged.length})`, "No unstaged changes")}
+                {/* Staged Section */}
+                <div className="rounded-xl border border-success/20 bg-success/5 overflow-hidden">
+                  <div className="px-2.5 py-1.5 bg-success/10 border-b border-success/20">
+                    <span className="text-[10px] font-bold text-success uppercase tracking-wider">Staged ({staged.length})</span>
+                  </div>
+                  <div className="divide-y divide-base-content/5">
+                    {staged.length === 0 ? (
+                      <div className="text-[11px] text-base-content/30 px-2.5 py-2 italic">No staged files</div>
+                    ) : staged.map((f) => (
+                      <div
+                        key={`s:${f.path}`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 cursor-pointer text-xs hover:bg-base-200/50 transition-colors ${
+                          selectedFile?.path === f.path && selectedFile?.staged ? "bg-primary/5" : ""
+                        }`}
+                        onClick={() => viewDiff(f)}
+                      >
+                        <StatusBadge status={f.status} />
+                        <span className="truncate flex-1">{f.path}</span>
+                        {actionLoading === f.path ? (
+                          <span className="loading loading-spinner loading-xs" />
+                        ) : (
+                          <button onClick={(e) => { e.stopPropagation(); unstageFile(f); }} title="Unstage" className="opacity-0 group-hover:opacity-100 hover:opacity-100">
+                            <TbCircleMinus size={12} className="text-warning" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Unstaged Section */}
+                <div className="rounded-xl border border-base-300/30 bg-base-200/40 overflow-hidden">
+                  <div className="px-2.5 py-1.5 bg-base-200/70 border-b border-base-300/30">
+                    <span className="text-[10px] font-bold text-base-content/60 uppercase tracking-wider">Unstaged ({unstaged.length})</span>
+                  </div>
+                  <div className="divide-y divide-base-content/5">
+                    {unstaged.length === 0 ? (
+                      <div className="text-[11px] text-base-content/30 px-2.5 py-2 italic">No unstaged changes</div>
+                    ) : unstaged.map((f) => (
+                      <div
+                        key={`u:${f.path}`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 cursor-pointer text-xs hover:bg-base-200/50 transition-colors ${
+                          selectedFile?.path === f.path && !selectedFile?.staged ? "bg-primary/5" : ""
+                        }`}
+                        onClick={() => viewDiff(f)}
+                      >
+                        <StatusBadge status={f.status} />
+                        <span className="truncate flex-1">{f.path}</span>
+                        {actionLoading === f.path ? (
+                          <span className="loading loading-spinner loading-xs" />
+                        ) : (
+                          <button onClick={(e) => { e.stopPropagation(); stageFile(f); }} title="Stage" className="opacity-0 hover:opacity-100">
+                            <TbCirclePlus size={12} className="text-success" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </>
             )}
           </div>
         </div>
 
-        {/* Right: tabs */}
+        {/* Right Panel */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex border-b border-base-content/10 bg-base-200/50 shrink-0" role="tablist">
+          {/* Tab Bar */}
+          <div className="flex border-b border-base-content/10 bg-base-200/40 shrink-0" role="tablist">
             {(["diff", "commit", "log", "branches"] as const).map((tab) => (
               <button
                 key={tab}
                 role="tab"
-                className={`px-3 py-1.5 text-[11px] uppercase tracking-wider font-medium transition-colors ${
-                  activeTab === tab ? "text-primary border-b-2 border-primary bg-base-100" : "text-base-content/50 hover:text-base-content"
+                className={`px-3 py-2 text-[11px] uppercase tracking-wider font-medium transition-colors flex items-center gap-1.5 ${
+                  activeTab === tab ? "text-primary border-b-2 border-primary bg-base-100" : "text-base-content/50 hover:text-base-content hover:bg-base-200/50"
                 }`}
                 onClick={() => { setActiveTab(tab); if (tab === "log" && log.length === 0) loadLog(); if (tab === "branches" && branches.length === 0) loadBranches(); }}
               >
-                {tab === "diff" && <span className="flex items-center gap-1"><TbCode size={12} />Diff</span>}
-                {tab === "commit" && <span className="flex items-center gap-1"><TbGitCommit size={12} />Commit</span>}
-                {tab === "log" && <span className="flex items-center gap-1"><TbHistory size={12} />History</span>}
-                {tab === "branches" && <span className="flex items-center gap-1"><TbListTree size={12} />Branches</span>}
+                {tab === "diff" && <TbCode size={12} />}
+                {tab === "commit" && <TbGitCommit size={12} />}
+                {tab === "log" && <TbHistory size={12} />}
+                {tab === "branches" && <TbListTree size={12} />}
+                {tab}
               </button>
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* ── Diff Tab ── */}
             {activeTab === "diff" && (
-              selectedFile ? (
-                <>
-                  <div className="flex items-center gap-2 text-xs">
-                    {renderStatusIcon(selectedFile.status)}
-                    <span className="font-mono">{selectedFile.path}</span>
-                    <span className="text-[10px] text-base-content/50">{selectedFile.staged ? "(staged)" : "(unstaged)"}</span>
+              <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
+                {selectedFile ? (
+                  <>
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b border-base-content/10 bg-base-200/50">
+                      <StatusBadge status={selectedFile.status} />
+                      <span className="text-xs font-mono font-medium">{selectedFile.path}</span>
+                      <span className="text-[10px] text-base-content/40">{selectedFile.staged ? "(staged)" : "(unstaged)"}</span>
+                    </div>
+                    <pre className="text-[11px] font-mono p-4 overflow-x-auto leading-relaxed whitespace-pre-wrap max-h-[calc(100vh-18rem)] overflow-y-auto">
+                      {diffContent || <span className="text-base-content/30 italic">Loading diff...</span>}
+                    </pre>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="text-center">
+                      <TbCode size={32} className="text-base-content/20 mx-auto mb-2" />
+                      <p className="text-xs text-base-content/30 italic">Select a file to view its diff</p>
+                    </div>
                   </div>
-                  <pre className="text-[11px] font-mono bg-base-300 rounded-xl p-4 overflow-x-auto leading-relaxed whitespace-pre-wrap">
-                    {diffContent || <span className="text-base-content/30 italic">Loading diff...</span>}
-                  </pre>
-                </>
-              ) : (
-                <div className="text-xs text-base-content/30 text-center py-12 italic">Select a file to view diff</div>
-              )
+                )}
+              </div>
             )}
 
+            {/* ── Commit Tab ── */}
             {activeTab === "commit" && (
+              <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
+                <div className="p-4 space-y-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <TbGitCommit size={16} className="text-primary" />
+                    New Commit
+                  </h4>
+                  {staged.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {staged.map((f) => (
+                        <span key={f.path} className="badge badge-outline badge-xs gap-1 py-2">
+                          <StatusBadge status={f.status} />
+                          <span className="max-w-[140px] truncate">{f.path}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-base-content/30 italic py-2">Stage some files first to create a commit</div>
+                  )}
+                  <textarea
+                    className="textarea textarea-bordered text-xs font-mono h-28 w-full bg-base-300/50 border-base-content/20 focus:border-primary/50 rounded-xl"
+                    placeholder="Commit message..."
+                    value={commitMsg}
+                    onChange={(e) => setCommitMsg(e.target.value)}
+                  />
+                  <div className="flex items-center gap-2">
+                    <button className="btn btn-sm btn-primary gap-1.5" onClick={commit} disabled={actionLoading === "commit" || !commitMsg.trim() || staged.length === 0}>
+                      {actionLoading === "commit" ? <span className="loading loading-spinner loading-xs" /> : <TbGitCommit size={14} />}
+                      Commit{staged.length > 0 ? ` (${staged.length} file${staged.length > 1 ? "s" : ""})` : ""}
+                    </button>
+                    <button className="btn btn-sm btn-ghost text-base-content/50" onClick={() => setCommitMsg("")}>Clear</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── History Tab ── */}
+            {activeTab === "log" && (
               <div className="space-y-3">
-                {staged.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {staged.map((f) => (
-                      <span key={f.path} className="badge badge-outline badge-xs gap-1">
-                        {renderStatusIcon(f.status)}
-                        <span className="max-w-[120px] truncate">{f.path}</span>
-                      </span>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <TbHistory size={16} className="text-primary" />
+                    Commit History
+                  </h4>
+                  <button className="btn btn-ghost btn-xs gap-1.5 text-base-content/40 hover:text-base-content" onClick={loadLog} disabled={actionLoading === "log"}>
+                    {actionLoading === "log" ? <span className="loading loading-spinner loading-xs" /> : <TbRefresh size={12} />}
+                    Refresh
+                  </button>
+                </div>
+                {actionLoading === "log" ? (
+                  <div className="flex justify-center py-12"><span className="loading loading-spinner loading-sm" /></div>
+                ) : log.length === 0 ? (
+                  <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 p-8 text-center text-xs text-base-content/30 italic">No commits yet</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {log.map((entry) => (
+                      <div key={entry.hash} className="relative rounded-2xl border border-base-300/40 bg-base-200/70 p-3.5 flex items-start gap-3 hover:border-primary/20 transition-all">
+                        <span className="font-mono text-[10px] text-primary font-bold shrink-0 mt-0.5 bg-primary/10 px-1.5 py-0.5 rounded">{entry.hash}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium truncate">{entry.message}</div>
+                          <div className="text-[10px] text-base-content/40 mt-0.5 flex items-center gap-2">
+                            <span>{entry.author}</span>
+                            <span className="text-base-content/20">·</span>
+                            <span>{entry.date}</span>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
-                {staged.length === 0 ? (
-                  <div className="text-xs text-base-content/30 text-center py-8 italic">Stage some files first to create a commit</div>
-                ) : (
-                  <>
-                    <textarea className="textarea textarea-bordered text-xs font-mono h-24 w-full" placeholder="Commit message..." value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)} />
-                    <div className="flex gap-2">
-                      <button className="btn btn-primary btn-sm gap-1" onClick={commit} disabled={actionLoading === "commit" || !commitMsg.trim()}>
-                        {actionLoading === "commit" ? <span className="loading loading-spinner loading-xs" /> : <TbGitCommit size={14} />}
-                        Commit {staged.length > 0 ? `(${staged.length})` : ""}
-                      </button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setCommitMsg("")}>Clear</button>
-                    </div>
-                  </>
-                )}
               </div>
             )}
 
-            {activeTab === "log" && (
-              <div className="space-y-1">
-                {actionLoading === "log" ? (
-                  <div className="flex justify-center py-8"><span className="loading loading-spinner loading-sm" /></div>
-                ) : log.length === 0 ? (
-                  <div className="text-xs text-base-content/30 text-center py-8 italic">No commits yet</div>
-                ) : (
-                  log.map((entry) => (
-                    <div key={entry.hash} className="flex items-start gap-2 p-2.5 rounded-xl hover:bg-base-200 transition-colors">
-                      <span className="font-mono text-[10px] text-primary font-bold shrink-0 mt-0.5">{entry.hash}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs truncate font-medium">{entry.message}</div>
-                        <div className="text-[10px] text-base-content/40">{entry.author} &middot; {entry.date}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-                <button className="btn btn-ghost btn-xs gap-1" onClick={loadLog} disabled={actionLoading === "log"}>
-                  <TbRefresh size={12} /> Refresh
-                </button>
-              </div>
-            )}
-
+            {/* ── Branches Tab ── */}
             {activeTab === "branches" && (
-              <div className="space-y-1">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <TbListTree size={16} className="text-primary" />
+                    Branches
+                  </h4>
+                  <button className="btn btn-ghost btn-xs gap-1.5 text-base-content/40 hover:text-base-content" onClick={loadBranches} disabled={actionLoading === "branches"}>
+                    {actionLoading === "branches" ? <span className="loading loading-spinner loading-xs" /> : <TbRefresh size={12} />}
+                    Refresh
+                  </button>
+                </div>
                 {actionLoading === "branches" ? (
-                  <div className="flex justify-center py-8"><span className="loading loading-spinner loading-sm" /></div>
+                  <div className="flex justify-center py-12"><span className="loading loading-spinner loading-sm" /></div>
                 ) : (
-                  branches.map((b) => (
-                    <div key={b.name} className={`flex items-center gap-2 p-2.5 rounded-xl text-xs ${b.current ? "bg-primary/10 text-primary" : "hover:bg-base-200"}`}>
-                      <TbGitBranch size={14} className={b.current ? "text-primary" : "text-base-content/30"} />
-                      <span className="flex-1 font-mono">{b.name}</span>
-                      {b.current ? (
-                        <span className="badge badge-primary badge-xs">current</span>
-                      ) : (
-                        <button className="btn btn-ghost btn-xs" onClick={() => checkoutBranch(b.name)} disabled={actionLoading === `co:${b.name}`}>
-                          {actionLoading === `co:${b.name}` ? <span className="loading loading-spinner loading-xs" /> : "Checkout"}
-                        </button>
-                      )}
-                    </div>
-                  ))
+                  <div className="space-y-1.5">
+                    {branches.map((b) => (
+                      <div
+                        key={b.name}
+                        className={`relative rounded-2xl border flex items-center gap-3 p-3.5 text-xs transition-all ${
+                          b.current
+                            ? "border-primary/30 bg-primary/5"
+                            : "border-base-300/40 bg-base-200/70 hover:border-base-content/20"
+                        }`}
+                      >
+                        <TbGitBranch size={16} className={b.current ? "text-primary" : "text-base-content/30"} />
+                        <span className="flex-1 font-mono font-medium">{b.name}</span>
+                        {b.current ? (
+                          <span className="badge badge-primary badge-xs py-1.5">current</span>
+                        ) : (
+                          <button
+                            className="btn btn-ghost btn-xs text-primary hover:bg-primary/10"
+                            onClick={() => checkoutBranch(b.name)}
+                            disabled={actionLoading === `co:${b.name}`}
+                          >
+                            {actionLoading === `co:${b.name}` ? <span className="loading loading-spinner loading-xs" /> : "Checkout"}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
-                <button className="btn btn-ghost btn-xs gap-1" onClick={loadBranches} disabled={actionLoading === "branches"}>
-                  <TbRefresh size={12} /> Refresh
-                </button>
               </div>
             )}
 
+            {/* Output / Error */}
             {output && (
-              <div className="border-t border-base-content/10 pt-3">
-                <pre className="text-[11px] font-mono bg-base-300 rounded-xl p-3 overflow-x-auto max-h-32 whitespace-pre-wrap">{output}</pre>
+              <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-base-content/10">
+                  <span className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wider">Output</span>
+                  <button onClick={() => setOutput("")} className="btn btn-ghost btn-xs btn-square text-base-content/30">
+                    <TbX size={12} />
+                  </button>
+                </div>
+                <pre className="text-[11px] font-mono p-3 overflow-x-auto max-h-32 whitespace-pre-wrap text-base-content/60">{output}</pre>
               </div>
             )}
-            {error && <div className="text-xs text-error">{error}</div>}
+            {error && (
+              <div className="relative rounded-2xl border border-error/30 bg-error/5 p-3 text-xs text-error">{error}</div>
+            )}
           </div>
         </div>
       </div>
