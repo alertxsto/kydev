@@ -77,7 +77,8 @@ success "Rust binary compiled successfully."
 info "Elevating Privileges"
 if sudo -n true 2>/dev/null; then
     step "Moving binary to /usr/local/bin for global access..."
-    sudo cp "$HOME/.kydev/src-tauri/target/release/kydev" /usr/local/bin/kydev
+    sudo cp -f "$HOME/.kydev/src-tauri/target/release/kydev" /usr/local/bin/kydev.new
+    sudo mv -f /usr/local/bin/kydev.new /usr/local/bin/kydev
     step "Registering Desktop Application Menu..."
     sudo cp "$HOME/.kydev/src-tauri/icons/128x128.png" /usr/share/pixmaps/kydev.png
     sudo cp "$HOME/.kydev/kydev.desktop" /usr/share/applications/kydev.desktop
@@ -85,7 +86,8 @@ if sudo -n true 2>/dev/null; then
 else
     echo -e "${B_YELLOW}│${NC}  Menggunakan instalasi user-level (tanpa sudo)..."
     mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/applications" "${HOME}/.local/share/icons"
-    cp src-tauri/target/release/kydev "${HOME}/.local/bin/kydev"
+    cp -f src-tauri/target/release/kydev "${HOME}/.local/bin/kydev.new"
+    mv -f "${HOME}/.local/bin/kydev.new" "${HOME}/.local/bin/kydev"
     chmod +x "${HOME}/.local/bin/kydev"
     cp src-tauri/icons/128x128.png "${HOME}/.local/share/icons/kydev.png"
     cp kydev.desktop "${HOME}/.local/share/applications/kydev.desktop"
