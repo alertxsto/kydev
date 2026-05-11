@@ -77,10 +77,10 @@ success "Rust binary compiled successfully."
 info "Elevating Privileges"
 if sudo -n true 2>/dev/null; then
     step "Moving binary to /usr/local/bin for global access..."
-    sudo cp src-tauri/target/release/kydev /usr/local/bin/kydev
+    sudo cp "$HOME/.kydev/src-tauri/target/release/kydev" /usr/local/bin/kydev
     step "Registering Desktop Application Menu..."
-    sudo cp src-tauri/icons/128x128.png /usr/share/pixmaps/kydev.png
-    sudo cp kydev.desktop /usr/share/applications/kydev.desktop
+    sudo cp "$HOME/.kydev/src-tauri/icons/128x128.png" /usr/share/pixmaps/kydev.png
+    sudo cp "$HOME/.kydev/kydev.desktop" /usr/share/applications/kydev.desktop
     sudo update-desktop-database /usr/share/applications || true
 else
     echo -e "${B_YELLOW}│${NC}  Menggunakan instalasi user-level (tanpa sudo)..."

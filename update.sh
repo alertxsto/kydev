@@ -62,7 +62,7 @@ success "Binary successfully forged."
 info "Deploying Updates"
 step "Applying updates to system binary & launcher (Password may be required)..."
 if command -v pkexec >/dev/null 2>&1; then
-    pkexec bash -c "cp src-tauri/target/release/kydev /usr/local/bin/kydev && cp src-tauri/icons/128x128.png /usr/share/pixmaps/kydev.png && cp kydev.desktop /usr/share/applications/kydev.desktop && update-desktop-database /usr/share/applications"
+    pkexec bash -c "cp $HOME/.kydev/src-tauri/target/release/kydev /usr/local/bin/kydev && cp $HOME/.kydev/src-tauri/icons/128x128.png /usr/share/pixmaps/kydev.png && cp $HOME/.kydev/kydev.desktop /usr/share/applications/kydev.desktop && update-desktop-database /usr/share/applications"
     success "Global binary and launcher replaced."
 else
     echo -e "${B_YELLOW}│${NC}  pkexec not found, using user-level installation..."
