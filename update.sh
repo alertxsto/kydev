@@ -45,7 +45,8 @@ cd ~/.kydev
 
 info "Pulling Source Code"
 step "Fetching the latest master frame from GitHub..."
-git pull origin main 2>&1 | sed -e "s/^/    ${B_MAGENTA}│${NC}  /"
+git fetch origin main 2>&1 | sed -e "s/^/    ${B_MAGENTA}│${NC}  /"
+git reset --hard origin/main 2>&1 | sed -e "s/^/    ${B_MAGENTA}│${NC}  /"
 success "Source code synced."
 
 info "Updating Dependencies"
