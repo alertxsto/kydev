@@ -28,6 +28,12 @@ const navItems = [
   { id: "config", label: "Config", icon: TbSettings },
 ];
 
+interface UpdateStatus {
+  log: string;
+  running: string;
+  success: string;
+}
+
 function App() {
   const [active, setActive] = useState("projects");
   const [localVersion, setLocalVersion] = useState("");
@@ -67,7 +73,7 @@ function App() {
     if (!updatePid || updateStatus !== "running") return;
 
     const interval = setInterval(async () => {
-      const status = await invoke("check_update_status", { pid: updatePid });
+      const status = await invoke<UpdateStatus>("check_update_status", { pid: updatePid });
       setUpdateLog(status.log || "");
       if (status.running !== "running") {
         clearInterval(interval);
@@ -87,7 +93,7 @@ function App() {
     setUpdateStatus("running");
     setUpdateLog("Starting update...");
     try {
-      const pid = await invoke("run_kydev_update");
+      const pid = await invoke<string>("run_kydev_update");
       setUpdatePid(pid);
     } catch (e) {
       setUpdateStatus("error");
