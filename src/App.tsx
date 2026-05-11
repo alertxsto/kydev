@@ -246,7 +246,7 @@ function App() {
         {/* Footer */}
         <div className={`${sidebarCollapsed ? "px-0 py-3" : "px-4 py-2"} border-t border-base-content/10 bg-base-200 shrink-0 flex items-center ${sidebarCollapsed ? "justify-center" : "justify-between"}`}>
           {!sidebarCollapsed && (
-            <p className="text-[10px] text-base-content/40 font-mono">v{localVersion || "0.7.0"}</p>
+            <p className="text-[10px] text-base-content/40 font-mono">v{localVersion || "0.8.0"}</p>
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
