@@ -631,21 +631,15 @@ fn check_update_status(pid: String) -> HashMap<String, String> {
         .to_string();
     result.insert("running".into(), is_running.clone());
 
+    let log_output = match std::fs::read_to_string("/tmp/kydev_update.log") {
+        Ok(content) => content.lines().rev().take(30).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n"),
+        Err(_) => String::new(),
+    };
+    result.insert("log".into(), log_output);
+
     if is_running != "running" {
         let exit_code = run_cmd("sh", &["-c", &format!("wait {} 2>/dev/null; echo $?", pid)]);
-        result.insert("exit_code".into(), exit_code.trim().to_string());
-
-        let log_output = match std::fs::read_to_string("/tmp/kydev_update.log") {
-            Ok(content) => {
-                let lines: Vec<&str> = content.lines().rev().take(30).collect::<Vec<_>>().into_iter().rev().collect();
-                lines.join("\n")
-            }
-            Err(_) => "Log not found".into(),
-        };
-        result.insert("log".into(), log_output);
-
-        let success = exit_code.trim() == "0";
-        result.insert("success".into(), success.to_string());
+        result.insert("success".into(), (exit_code.trim() == "0").to_string());
     }
 
     result

@@ -1,6 +1,6 @@
 [package]
 name = "kydev"
-version = "0.6.2"
+version = "0.6.3"
 description = "Fedora Developer Toolbox"
 authors = ["alertxsto"]
 edition = "2021"

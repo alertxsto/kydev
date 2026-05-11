@@ -98,7 +98,7 @@ function App() {
     if (!updatePid || updateStatus !== "running") return;
     const interval = setInterval(async () => {
       const status = await invoke<UpdateStatus>("check_update_status", { pid: updatePid });
-      setUpdateLog(status.log || "");
+      if (status.log) setUpdateLog(status.log);
       if (status.running !== "running") {
         clearInterval(interval);
         setUpdateStatus(status.success === "true" ? "success" : "error");
