@@ -27,6 +27,22 @@ curl -sSfL https://raw.githubusercontent.com/alertxsto/kydev/main/install.sh | b
 - **Native DNF Package Manager**: Search, install, remove packages, and view your DNF transaction history.
 - **Persistent Workspace State**: Switch between tasks without losing your place. Your terminal logs and active requests stay exactly as you left them.
 
+## 🔄 Updating KyDev
+
+KyDev has an **Auto-Updater built into the UI**! When a new version is pushed to GitHub, you will see a notification in the sidebar. Click **"Update Now"** to automatically install it.
+
+Alternatively, if you prefer the terminal (and want to see the Dank ASCII installer in action), you can trigger an update manually:
+```bash
+curl -sSfL https://raw.githubusercontent.com/alertxsto/kydev/main/update.sh | bash
+```
+
+## 🗑️ Uninstalling
+
+If you ever want to completely remove KyDev and its source files from your system, you can use the uninstall script:
+```bash
+curl -sSfL https://raw.githubusercontent.com/alertxsto/kydev/main/uninstall.sh | bash
+```
+
 ## 📚 Documentation
 
 For complete documentation on how the app is structured and how to use every feature, please check the `docs` directory:
