@@ -189,8 +189,8 @@ function App() {
               </span>
               Updating KyDev...
             </p>
-            <div className="bg-base-200 rounded p-2 text-[8px] font-mono text-primary overflow-x-auto">
-              {updateLog.split('\n').slice(-10).join('\n')}
+            <div className="bg-base-200 rounded p-2 text-[8px] font-mono text-primary overflow-x-auto max-h-32 overflow-y-auto">
+              {updateLog.split('\n').slice(-20).join('\n')}
             </div>
           </div>
         )}
@@ -204,6 +204,9 @@ function App() {
               </span>
               Update Complete!
             </p>
+            <div className="bg-base-200 rounded p-2 mb-2 text-[8px] font-mono text-green-400 overflow-x-auto max-h-32 overflow-y-auto">
+              {updateLog.split('\n').slice(-20).join('\n')}
+            </div>
             <button 
               className="btn btn-xs btn-success w-full shadow-lg shadow-green-500/20"
               onClick={() => {
@@ -224,6 +227,9 @@ function App() {
               </span>
               Update Failed
             </p>
+            <div className="bg-base-200 rounded p-2 mb-2 text-[8px] font-mono text-red-400 overflow-x-auto max-h-32 overflow-y-auto">
+              {updateLog || "No output captured."}
+            </div>
             <button 
               className="btn btn-xs btn-outline w-full"
               onClick={() => setUpdateStatus("idle")}
