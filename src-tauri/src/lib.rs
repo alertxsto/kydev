@@ -37,6 +37,17 @@ pub struct PackageInfo { pub name: String, pub summary: String, pub version: Str
 #[derive(Serialize)]
 pub struct ConfigEntry { pub name: String, pub path: String, pub category: String }
 
+// ── Git Types ─────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct GitStatusFile { pub path: String, pub status: String, pub staged: bool }
+
+#[derive(Serialize)]
+pub struct GitLogEntry { pub hash: String, pub author: String, pub message: String, pub date: String }
+
+#[derive(Serialize)]
+pub struct GitBranchInfo { pub name: String, pub current: bool, pub remote: String }
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 fn run_cmd(cmd: &str, args: &[&str]) -> String {
@@ -208,6 +219,145 @@ async fn scaffold_project(name: String, path: String, template: String, addons: 
 
 #[tauri::command]
 async fn open_in_editor(path: String, editor: String) -> String { run_cmd("sh", &["-c", &format!("{} {} &", editor, path)]) }
+
+// ── Git GUI Commands ──────────────────────────────────────────────────
+
+fn is_git_repo(path: &str) -> bool {
+    let out = run_cmd("git", &["-C", path, "rev-parse", "--git-dir"]);
+    !out.is_empty() && !out.contains("fatal")
+}
+
+#[tauri::command]
+async fn git_current_branch(path: String) -> Result<String, String> {
+    let branch = run_cmd("git", &["-C", &path, "branch", "--show-current"]);
+    if branch.is_empty() || branch.contains("fatal") {
+        return Err("Not a git repository".into());
+    }
+    Ok(branch)
+}
+
+#[tauri::command]
+async fn git_status(path: String) -> Result<Vec<GitStatusFile>, String> {
+    if !is_git_repo(&path) { return Err("Not a git repository".into()); }
+    let output = run_cmd("git", &["-C", &path, "status", "--porcelain"]);
+    let mut files = Vec::new();
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let (status_part, file_part) = if line.starts_with("??") {
+            ("??", &line[2..])
+        } else if line.starts_with("!!") {
+            continue;
+        } else if line.len() >= 2 {
+            (&line[0..2], &line[2..])
+        } else {
+            continue;
+        };
+        let file_path = file_part.trim();
+        let bs = status_part.as_bytes();
+        let x = bs[0] as char;
+        let y = bs[1] as char;
+        if status_part == "??" {
+            files.push(GitStatusFile { path: file_path.into(), status: "?".into(), staged: false });
+        } else {
+            if x != ' ' {
+                files.push(GitStatusFile { path: file_path.into(), status: x.to_string(), staged: true });
+            }
+            if y != ' ' {
+                files.push(GitStatusFile { path: file_path.into(), status: y.to_string(), staged: false });
+            }
+        }
+    }
+    Ok(files)
+}
+
+#[tauri::command]
+async fn git_diff(path: String, file: String, staged: bool) -> Result<String, String> {
+    let out = if staged {
+        run_cmd("git", &["-C", &path, "diff", "--cached", "--", &file])
+    } else {
+        run_cmd("git", &["-C", &path, "diff", "--", &file])
+    };
+    if out.contains("fatal") { Err(out) } else { Ok(out) }
+}
+
+#[tauri::command]
+async fn git_stage(path: String, files: Vec<String>) -> Result<String, String> {
+    let out = if files.is_empty() {
+        run_cmd("git", &["-C", &path, "add", "-A"])
+    } else {
+        let mut args = vec!["-C", &path, "add", "--"];
+        for f in &files { args.push(f); }
+        run_cmd("git", &args)
+    };
+    if out.contains("fatal") || out.contains("error:") { Err(out) } else { Ok(out) }
+}
+
+#[tauri::command]
+async fn git_unstage(path: String, files: Vec<String>) -> Result<String, String> {
+    let out = if files.is_empty() {
+        run_cmd("git", &["-C", &path, "restore", "--staged", "."])
+    } else {
+        let mut args = vec!["-C", &path, "restore", "--staged", "--"];
+        for f in &files { args.push(f); }
+        run_cmd("git", &args)
+    };
+    if out.contains("fatal") { Err(out) } else { Ok(out) }
+}
+
+#[tauri::command]
+async fn git_commit(path: String, message: String) -> Result<String, String> {
+    let out = run_cmd("sh", &["-c", &format!("git -C '{}' commit -m '{}' 2>&1", path.replace('\'', "'\\''"), message.replace('\'', "'\\''"))]);
+    if out.contains("fatal") || out.contains("error:") { Err(out) } else { Ok(out) }
+}
+
+#[tauri::command]
+async fn git_push(path: String) -> Result<String, String> {
+    let out = run_cmd("git", &["-C", &path, "push"]);
+    if out.is_empty() { Ok("Everything up-to-date".into()) }
+    else if out.contains("fatal") { Err(out) } else { Ok(out) }
+}
+
+#[tauri::command]
+async fn git_pull(path: String) -> Result<String, String> {
+    let out = run_cmd("git", &["-C", &path, "pull"]);
+    if out.contains("fatal") { Err(out) } else { Ok(out) }
+}
+
+#[tauri::command]
+async fn git_log(path: String, limit: u32) -> Result<Vec<GitLogEntry>, String> {
+    let output = run_cmd("git", &["-C", &path, "log", &format!("--max-count={}", limit), "--format=%H|%an|%s|%ar", "--no-color"]);
+    if output.contains("fatal") { return Err("Not a git repository".into()); }
+    let mut entries = Vec::new();
+    for line in output.lines() {
+        let parts: Vec<&str> = line.splitn(4, '|').collect();
+        if parts.len() == 4 {
+            entries.push(GitLogEntry { hash: parts[0][..7.min(parts[0].len())].into(), author: parts[1].into(), message: parts[2].into(), date: parts[3].into() });
+        }
+    }
+    Ok(entries)
+}
+
+#[tauri::command]
+async fn git_branches(path: String) -> Result<Vec<GitBranchInfo>, String> {
+    let output = run_cmd("git", &["-C", &path, "branch", "-a", "--no-color"]);
+    if output.contains("fatal") { return Err("Not a git repository".into()); }
+    let mut branches = Vec::new();
+    for line in output.lines() {
+        let name = line.trim().trim_start_matches('*').trim();
+        if name.is_empty() { continue; }
+        let current = line.trim().starts_with('*');
+        let remote = if name.contains('/') { name.splitn(2, '/').next().unwrap_or("").into() } else { String::new() };
+        branches.push(GitBranchInfo { name: name.into(), current, remote });
+    }
+    Ok(branches)
+}
+
+#[tauri::command]
+async fn git_checkout(path: String, branch: String) -> Result<String, String> {
+    let out = run_cmd("git", &["-C", &path, "checkout", &branch]);
+    if out.contains("fatal") || out.contains("error:") { Err(out) } else { Ok(out) }
+}
 
 #[tauri::command]
 fn list_ports() -> Vec<PortEntry> {
@@ -507,10 +657,11 @@ fn check_update_status(pid: String) -> HashMap<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-         .invoke_handler(tauri::generate_handler![
-             get_system_info, check_updates, preview_updates, run_update, run_cleanup, get_dnf_history,
-             scan_projects, run_project_script, open_in_editor, scaffold_project, run_kydev_update, check_update_status,
-             list_ports, kill_process,
+          .invoke_handler(tauri::generate_handler![
+              get_system_info, check_updates, preview_updates, run_update, run_cleanup, get_dnf_history,
+              scan_projects, run_project_script, open_in_editor, scaffold_project, run_kydev_update, check_update_status,
+              git_current_branch, git_status, git_diff, git_stage, git_unstage, git_commit, git_push, git_pull, git_log, git_branches, git_checkout,
+              list_ports, kill_process,
              search_packages, get_package_details, install_package, remove_package,
              get_containers, run_docker_compose, run_docker_action, write_compose_file, send_http_request,
              start_tunnel, get_tunnel_log, stop_tunnel, run_db_query,

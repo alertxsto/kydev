@@ -51,7 +51,7 @@ esac
 
 info "Initializing System Payload"
 step "Downloading native dependencies via DNF..."
-sudo dnf install -y webkit2gtk4.1-devel curl wget openssl-devel libappindicator-gtk3-devel librsvg2-devel > /dev/null 2>&1
+sudo dnf install -y webkit2gtk4.1-devel curl wget git openssl-devel libappindicator-gtk3-devel librsvg2-devel > /dev/null 2>&1
 success "All system dependencies locked and loaded."
 
 info "Cloning Remote Repository"

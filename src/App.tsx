@@ -12,7 +12,8 @@ import DockerManager from "./pages/Docker";
 import ApiTester from "./pages/ApiTester";
 import Tunnel from "./pages/Tunnel";
 import DatabaseStudio from "./pages/Database";
-import { TbFolder, TbBolt, TbBox, TbNetwork, TbTools, TbSettings, TbTool, TbWand, TbBrandDocker, TbApi, TbWorldWww, TbDatabase } from "react-icons/tb";
+import Git from "./pages/Git";
+import { TbFolder, TbBolt, TbBox, TbNetwork, TbTools, TbSettings, TbTool, TbWand, TbBrandDocker, TbApi, TbWorldWww, TbDatabase, TbGitBranch } from "react-icons/tb";
 
 const navItems = [
   { id: "projects", label: "Projects", icon: TbFolder },
@@ -25,6 +26,7 @@ const navItems = [
   { id: "packages", label: "Packages", icon: TbBox },
   { id: "network", label: "Network", icon: TbNetwork },
   { id: "devtools", label: "DevTools", icon: TbTools },
+  { id: "git", label: "Git", icon: TbGitBranch },
   { id: "config", label: "Config", icon: TbSettings },
 ];
 
@@ -229,6 +231,7 @@ function App() {
         <div className={`h-full ${active === "packages" ? "block" : "hidden"}`}><Search /></div>
         <div className={`h-full ${active === "network" ? "block" : "hidden"}`}><Ports /></div>
         <div className={`h-full ${active === "devtools" ? "block" : "hidden"}`}><DevTools /></div>
+        <div className={`h-full ${active === "git" ? "block" : "hidden"}`}><Git /></div>
         <div className={`h-full ${active === "config" ? "block" : "hidden"}`}><Config /></div>
       </main>
     </div>
