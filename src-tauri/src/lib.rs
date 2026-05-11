@@ -672,6 +672,7 @@ fn load_state_file() -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
          .invoke_handler(tauri::generate_handler![
               get_system_info, check_updates, preview_updates, run_update, run_cleanup, get_dnf_history,
               scan_projects, run_project_script, open_in_editor, scaffold_project, run_kydev_update, check_update_status,

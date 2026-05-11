@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { TbPlayerPlayFilled, TbPlayerStopFilled, TbRefresh, TbTrash, TbTerminal2, TbBrandDocker, TbWand } from "react-icons/tb";
+import DirInput from "../components/DirInput";
+import {
+  TbPlayerPlayFilled, TbPlayerStopFilled, TbRefresh,
+  TbTrash, TbTerminal2, TbBrandDocker, TbWand,
+} from "react-icons/tb";
 
 interface ContainerInfo {
-  id: string;
-  image: string;
-  status: string;
-  ports: string;
-  name: string;
+  id: string; image: string; status: string; ports: string; name: string;
 }
 
 export default function DockerManager() {
@@ -29,14 +29,13 @@ export default function DockerManager() {
     if (services.mysql) yml += "  mysql:\n    image: mysql:latest\n    environment:\n      MYSQL_ROOT_PASSWORD: password\n    ports:\n      - '3306:3306'\n";
     if (services.redis) yml += "  redis:\n    image: redis:alpine\n    ports:\n      - '6379:6379'\n";
     if (services.nginx) yml += "  nginx:\n    image: nginx:alpine\n    ports:\n      - '80:80'\n";
-    
     try {
-      const realPath = composePath.replace("~", "/home/alertxsto");
+      const realPath = composePath.replace(/^~/, "/home/alertxsto");
       await invoke("write_compose_file", { path: realPath + "/docker-compose.yml", content: yml });
       await invoke("run_docker_compose", { path: realPath, action: "up -d" });
       setTab("manager");
       loadContainers();
-    } catch(e) { console.error(e); }
+    } catch (e) { console.error(e); }
     setBuildLoading(false);
   };
 
@@ -45,9 +44,7 @@ export default function DockerManager() {
     try {
       const res = await invoke("get_containers");
       setContainers(res as ContainerInfo[]);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
     setLoading(false);
   };
 
@@ -56,9 +53,7 @@ export default function DockerManager() {
     try {
       await invoke("run_docker_action", { id, action });
       loadContainers();
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
     setActionLoading(null);
   };
 
@@ -67,126 +62,157 @@ export default function DockerManager() {
     try {
       const res = await invoke("run_docker_action", { id, action: "logs --tail 50" });
       setLogs(res as string);
-    } catch (e) {
-      setLogs(String(e));
-    }
+    } catch (e) { setLogs(String(e)); }
   };
 
   useEffect(() => { loadContainers(); }, []);
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b border-base-content/10 bg-base-200/50 shrink-0 flex justify-between items-center">
-        <div className="flex gap-4 items-center">
-          <div>
-            <h2 className="text-xl font-bold flex items-center gap-2"><TbBrandDocker /> Docker Hub</h2>
-            <p className="text-xs text-base-content/50 mt-1">Manage containers & build compose files</p>
+      {/* Header */}
+      <div className="p-5 border-b border-base-content/10 bg-base-200/50 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary"><TbBrandDocker size={22} /></div>
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Docker Hub</h2>
+              <p className="text-sm text-base-content/50 mt-0.5">Manage containers & build compose files</p>
+            </div>
           </div>
-          <div className="tabs tabs-boxed ml-4 bg-base-300/50">
-            <a className={`tab tab-sm ${tab === 'manager' ? 'tab-active' : ''}`} onClick={() => setTab('manager')}>Manager</a>
-            <a className={`tab tab-sm ${tab === 'builder' ? 'tab-active' : ''}`} onClick={() => setTab('builder')}>Auto-Composer</a>
+          <div className="flex items-center gap-3">
+            <div className="tabs tabs-boxed bg-base-300/50 p-0.5">
+              <button className={`tab tab-sm ${tab === "manager" ? "tab-active bg-primary text-primary-content" : ""}`} onClick={() => setTab("manager")}>Manager</button>
+              <button className={`tab tab-sm ${tab === "builder" ? "tab-active bg-primary text-primary-content" : ""}`} onClick={() => setTab("builder")}>Auto-Composer</button>
+            </div>
+            {tab === "manager" && (
+              <div className="flex gap-2">
+                <button className="btn btn-sm btn-outline gap-1" onClick={loadContainers} disabled={loading}>
+                  <TbRefresh className={loading ? "animate-spin" : ""} size={14} /> Refresh
+                </button>
+                <button className="btn btn-sm btn-outline btn-error gap-1" onClick={() => runAction("prune", "system prune -a -f")}>
+                  <TbTrash size={14} /> Prune All
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex gap-2">
-          {tab === 'manager' && (
-            <>
-              <button className="btn btn-sm btn-outline" onClick={loadContainers} disabled={loading}>
-                <TbRefresh className={loading ? "animate-spin" : ""} /> Refresh
-              </button>
-              <button className="btn btn-sm btn-error btn-outline" onClick={() => runAction("prune", "system prune -a -f")}>
-                <TbTrash /> Prune All
-              </button>
-            </>
-          )}
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {tab === 'manager' ? (
-        <>
-          <div className="w-1/2 border-r border-base-content/10 bg-base-100 flex flex-col">
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {containers.length === 0 && !loading && (
-              <div className="p-8 text-center text-sm text-base-content/40 border border-dashed border-base-content/10 rounded-lg">
-                No containers found. Docker might not be running.
-              </div>
-            )}
-            {loading && containers.length === 0 && (
-              <div className="p-8 text-center"><span className="loading loading-spinner text-primary" /></div>
-            )}
-            {containers.map(c => {
-              const isUp = c.status.toLowerCase().includes("up");
-              const isSelected = selectedId === c.id;
-              return (
-                <div key={c.id} className={`border rounded-lg p-3 transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-base-content/20 bg-base-200/30'}`}>
-                  <div className="flex justify-between items-start">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className={`w-2 h-2 rounded-full ${isUp ? 'bg-success' : 'bg-error'}`} />
-                        <h4 className="font-bold text-sm truncate">{c.name}</h4>
-                        <span className="text-[10px] font-mono opacity-50">{c.id}</span>
-                      </div>
-                      <p className="text-xs text-base-content/60 truncate" title={c.image}>{c.image}</p>
-                      <p className="text-[10px] text-base-content/40 truncate mt-1">{c.ports || "No exposed ports"}</p>
-                    </div>
-                    <div className="flex gap-1 shrink-0 ml-4">
-                      {isUp ? (
-                        <button className="btn btn-xs btn-outline btn-error" onClick={() => runAction(c.id, "stop")} disabled={actionLoading === c.id}>
-                          {actionLoading === c.id ? <span className="loading loading-spinner loading-xs" /> : <TbPlayerStopFilled />} Stop
-                        </button>
-                      ) : (
-                        <button className="btn btn-xs btn-outline btn-success" onClick={() => runAction(c.id, "start")} disabled={actionLoading === c.id}>
-                          {actionLoading === c.id ? <span className="loading loading-spinner loading-xs" /> : <TbPlayerPlayFilled />} Start
-                        </button>
-                      )}
-                      <button className="btn btn-xs btn-outline" onClick={() => viewLogs(c.id)}>
-                        <TbTerminal2 /> Logs
-                      </button>
-                    </div>
+        {tab === "manager" ? (
+          <>
+            {/* Container list */}
+            <div className="w-1/2 border-r border-base-content/10 bg-base-100 flex flex-col">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {loading && containers.length === 0 ? (
+                  <div className="flex justify-center py-12"><span className="loading loading-spinner text-primary" /></div>
+                ) : containers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-base-content/40">
+                    <TbBrandDocker size={40} className="opacity-30" />
+                    <p className="text-sm mt-2">No containers found</p>
+                    <p className="text-xs mt-1">Docker might not be running</p>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                ) : (
+                  containers.map((c) => {
+                    const isUp = c.status.toLowerCase().includes("up");
+                    const isSelected = selectedId === c.id;
+                    return (
+                      <div
+                        key={c.id}
+                        className={`rounded-xl border p-4 transition-all ${
+                          isSelected ? "border-primary bg-primary/5" : "border-base-content/10 bg-base-200/30 hover:border-base-content/20"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className={`w-2 h-2 rounded-full ${isUp ? "bg-success" : "bg-error"} shadow-sm ${isUp ? "shadow-success/30" : "shadow-error/30"}`} />
+                              <h4 className="font-bold text-sm truncate">{c.name}</h4>
+                              <span className="text-[10px] font-mono text-base-content/40">{c.id.slice(0, 12)}</span>
+                            </div>
+                            <p className="text-xs text-base-content/60 truncate">{c.image}</p>
+                            <p className="text-[10px] text-base-content/40 mt-0.5">{c.ports || "No exposed ports"}</p>
+                          </div>
+                          <div className="flex gap-1 shrink-0 ml-3">
+                            {isUp ? (
+                              <button className="btn btn-xs btn-outline btn-error gap-1" onClick={() => runAction(c.id, "stop")} disabled={actionLoading === c.id}>
+                                {actionLoading === c.id ? <span className="loading loading-spinner loading-xs" /> : <TbPlayerStopFilled size={12} />} Stop
+                              </button>
+                            ) : (
+                              <button className="btn btn-xs btn-outline btn-success gap-1" onClick={() => runAction(c.id, "start")} disabled={actionLoading === c.id}>
+                                {actionLoading === c.id ? <span className="loading loading-spinner loading-xs" /> : <TbPlayerPlayFilled size={12} />} Start
+                              </button>
+                            )}
+                            <button className="btn btn-xs btn-outline gap-1" onClick={() => viewLogs(c.id)}>
+                              <TbTerminal2 size={12} /> Logs
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
 
-        <div className="w-1/2 bg-base-300 flex flex-col">
-          <div className="p-3 border-b border-base-content/10 bg-base-200/50 shrink-0 flex items-center gap-2">
-            <TbTerminal2 className="opacity-50" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-base-content/50">
-              Container Logs {selectedId ? `(${selectedId})` : ""}
-            </span>
-          </div>
-          <div className="flex-1 p-4 font-mono text-[11px] leading-relaxed text-base-content/70 overflow-y-auto whitespace-pre-wrap">
-            {logs || "Select a container to view logs..."}
-          </div>
-        </div>
-        </>
+            {/* Log pane */}
+            <div className="w-1/2 bg-base-300 flex flex-col">
+              <div className="p-3 border-b border-base-content/10 bg-base-200/50 shrink-0 flex items-center gap-2">
+                <TbTerminal2 size={14} className="opacity-50" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-base-content/50">
+                  Container Logs {selectedId ? `(${selectedId.slice(0, 12)})` : ""}
+                </span>
+              </div>
+              <div className="flex-1 p-4 font-mono text-[11px] leading-relaxed text-base-content/70 overflow-y-auto whitespace-pre-wrap">
+                {logs || <span className="text-base-content/30 italic">Select a container to view logs...</span>}
+              </div>
+            </div>
+          </>
         ) : (
-        <div className="flex-1 p-8 overflow-y-auto bg-base-100 flex flex-col items-center">
-          <div className="max-w-2xl w-full">
-            <h3 className="text-lg font-bold mb-4">Docker Compose Generator</h3>
-            <p className="text-sm text-base-content/70 mb-6">Select the services you need. We will automatically generate a <code>docker-compose.yml</code> file and start the containers for you.</p>
+          /* Auto-Composer */
+          <div className="flex-1 overflow-y-auto bg-base-100 p-8">
+            <div className="max-w-2xl mx-auto space-y-6">
+              <div>
+                <h3 className="text-lg font-bold">Docker Compose Generator</h3>
+                <p className="text-sm text-base-content/60 mt-1">Select services. We'll generate <code className="text-primary">docker-compose.yml</code> and start containers.</p>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              {Object.keys(services).map(key => (
-                <label key={key} className="cursor-pointer border border-base-content/10 rounded-box p-4 flex items-center gap-3 hover:bg-base-200/50 transition-colors">
-                  <input type="checkbox" className="checkbox checkbox-primary" checked={(services as any)[key]} onChange={e => setServices({...services, [key]: e.target.checked})} />
-                  <span className="font-bold capitalize">{key}</span>
-                </label>
-              ))}
+              <div className="grid grid-cols-2 gap-3">
+                {Object.entries(services).map(([key, val]) => (
+                  <label
+                    key={key}
+                    className={`cursor-pointer rounded-xl border p-4 flex items-center gap-3 transition-all ${
+                      val ? "border-primary bg-primary/5" : "border-base-content/10 hover:border-base-content/20 bg-base-200/30"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary"
+                      checked={val}
+                      onChange={(e) => setServices({ ...services, [key]: e.target.checked })}
+                    />
+                    <span className="font-bold capitalize text-sm">{key}</span>
+                  </label>
+                ))}
+              </div>
+
+              <DirInput
+                label="Target Directory"
+                value={composePath}
+                onChange={setComposePath}
+                placeholder="~/projects"
+              />
+
+              <button
+                className="btn btn-primary w-full gap-2"
+                onClick={generateCompose}
+                disabled={buildLoading || !Object.values(services).some(Boolean)}
+              >
+                {buildLoading ? <span className="loading loading-spinner" /> : <TbWand size={16} />}
+                Generate & Up
+              </button>
             </div>
-
-            <div className="form-control mb-6">
-              <label className="label"><span className="label-text font-bold">Target Project Directory</span></label>
-              <input type="text" className="input input-bordered font-mono text-sm" value={composePath} onChange={e => setComposePath(e.target.value)} />
-            </div>
-
-            <button className="btn btn-primary w-full" onClick={generateCompose} disabled={buildLoading || !Object.values(services).some(v=>v)}>
-              {buildLoading ? <span className="loading loading-spinner" /> : <TbWand />} Generate & Up
-            </button>
           </div>
-        </div>
         )}
       </div>
     </div>

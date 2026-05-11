@@ -1,7 +1,8 @@
-interface UpdateInfo {
-  count: number;
-  has_updates: boolean;
-}
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { TbRefresh, TbTrash, TbPackage } from "react-icons/tb";
+
+interface UpdateInfo { count: number; has_updates: boolean; }
 
 export default function SystemPage() {
   const [updates, setUpdates] = useState<UpdateInfo | null>(null);
@@ -14,59 +15,50 @@ export default function SystemPage() {
   };
 
   const runUpdate = async () => {
-    setRunning("update");
-    setOutput("");
+    setRunning("update"); setOutput("");
     const out = await invoke("run_update");
-    setOutput(out as string);
-    setRunning(null);
-    check();
+    setOutput(out as string); setRunning(null); check();
   };
 
   const runCleanup = async () => {
-    setRunning("cleanup");
-    setOutput("");
+    setRunning("cleanup"); setOutput("");
     const out = await invoke("run_cleanup");
-    setOutput(out as string);
-    setRunning(null);
+    setOutput(out as string); setRunning(null);
   };
 
   useEffect(() => { check(); }, []);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">System</h2>
-        <p className="text-sm text-neutral-content/50 mt-1">Package management & maintenance</p>
+    <div className="p-6 space-y-5 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-primary/10 text-primary"><TbPackage size={22} /></div>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">System Maintenance</h2>
+          <p className="text-sm text-base-content/50 mt-0.5">Package management & cleanup</p>
+        </div>
       </div>
 
-      {/* Updates */}
-      <div className="bg-base-200 rounded-box p-5 card-hover">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📦</span>
-            <span className="font-semibold">System Updates</span>
+      {/* Update Card */}
+      <div className="rounded-2xl border border-base-content/10 bg-base-200/30 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold">System Updates</h3>
+            <p className="text-xs text-base-content/50 mt-0.5">Check and apply pending DNF updates & security patches</p>
           </div>
           {updates && (
-            <span className={`badge ${updates.has_updates ? "badge-warning" : "badge-success"} gap-1`}>
+            <span className={`badge badge-lg gap-1 ${updates.has_updates ? "badge-warning" : "badge-success"}`}>
               {updates.count} available
             </span>
           )}
         </div>
         <div className="flex gap-2">
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={runUpdate}
-            disabled={running !== null}
-          >
-            {running === "update" ? <span className="loading loading-spinner loading-xs" /> : null}
+          <button className="btn btn-primary btn-sm gap-1" onClick={runUpdate} disabled={running !== null}>
+            {running === "update" ? <span className="loading loading-spinner loading-xs" /> : <TbRefresh size={14} />}
             {running === "update" ? "Updating..." : "Update All"}
           </button>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={runCleanup}
-            disabled={running !== null}
-          >
-            {running === "cleanup" ? <span className="loading loading-spinner loading-xs" /> : null}
+          <button className="btn btn-outline btn-sm gap-1" onClick={runCleanup} disabled={running !== null}>
+            {running === "cleanup" ? <span className="loading loading-spinner loading-xs" /> : <TbTrash size={14} />}
             Cleanup
           </button>
         </div>
@@ -74,18 +66,13 @@ export default function SystemPage() {
 
       {/* Output */}
       {output && (
-        <div className="bg-base-200 rounded-box p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-semibold">Output</span>
+        <div className="rounded-2xl border border-base-content/10 bg-base-300/50 overflow-hidden">
+          <div className="px-4 py-2 bg-base-200/50 border-b border-base-content/10">
+            <span className="text-xs font-semibold uppercase tracking-wider text-base-content/50">Output</span>
           </div>
-          <pre className="text-xs text-neutral-content/70 whitespace-pre-wrap font-mono bg-base-300 p-3 rounded-box max-h-60 overflow-y-auto">
-            {output}
-          </pre>
+          <pre className="p-4 text-xs font-mono text-base-content/70 whitespace-pre-wrap max-h-60 overflow-y-auto">{output}</pre>
         </div>
       )}
     </div>
   );
 }
-
-import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
