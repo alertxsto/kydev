@@ -464,8 +464,41 @@ fn read_config_file(path: String) -> String {
 fn get_disk_usage() -> String { run_cmd("sh", &["-c", "df -h / | tail -1 | awk '{print $3 \" / \" $2 \" (\" $5 \")\"}'"]) }
 
 #[tauri::command]
-async fn run_kydev_update() -> String {
-    run_cmd("sh", &["-c", "bash ~/.kydev/update.sh > /tmp/kydev_update.log 2>&1 & echo $!"])
+async fn run_kydev_update() -> Result<String, String> {
+    let pid = run_cmd("sh", &["-c", "bash ~/.kydev/update.sh > /tmp/kydev_update.log 2>&1 & echo $!"]);
+    let pid = pid.trim().to_string();
+    if pid.is_empty() {
+        return Err("Failed to start update process".into());
+    }
+    Ok(pid)
+}
+
+#[tauri::command]
+fn check_update_status(pid: String) -> HashMap<String, String> {
+    let mut result = HashMap::new();
+    let is_running = run_cmd("sh", &["-c", &format!("kill -0 {} 2>/dev/null && echo running || echo done", pid)])
+        .trim()
+        .to_string();
+    result.insert("running".into(), is_running.clone());
+
+    if is_running != "running" {
+        let exit_code = run_cmd("sh", &["-c", &format!("wait {} 2>/dev/null; echo $?", pid)]);
+        result.insert("exit_code".into(), exit_code.trim().to_string());
+
+        let log_output = match std::fs::read_to_string("/tmp/kydev_update.log") {
+            Ok(content) => {
+                let lines: Vec<&str> = content.lines().rev().take(30).collect::<Vec<_>>().into_iter().rev().collect();
+                lines.join("\n")
+            }
+            Err(_) => "Log not found".into(),
+        };
+        result.insert("log".into(), log_output);
+
+        let success = exit_code.trim() == "0";
+        result.insert("success".into(), success.to_string());
+    }
+
+    result
 }
 
 // ── App Entry ─────────────────────────────────────────────────────────
@@ -474,17 +507,17 @@ async fn run_kydev_update() -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
-            get_system_info, check_updates, preview_updates, run_update, run_cleanup, get_dnf_history,
-            scan_projects, run_project_script, open_in_editor, scaffold_project, run_kydev_update,
-            list_ports, kill_process,
-            search_packages, get_package_details, install_package, remove_package,
-            get_containers, run_docker_compose, run_docker_action, write_compose_file, send_http_request,
-            start_tunnel, get_tunnel_log, stop_tunnel, run_db_query,
-            check_service, start_service,
-            check_install_status, quick_install_bulk,
-            get_config_files, read_config_file, get_disk_usage,
-        ])
+         .invoke_handler(tauri::generate_handler![
+             get_system_info, check_updates, preview_updates, run_update, run_cleanup, get_dnf_history,
+             scan_projects, run_project_script, open_in_editor, scaffold_project, run_kydev_update, check_update_status,
+             list_ports, kill_process,
+             search_packages, get_package_details, install_package, remove_package,
+             get_containers, run_docker_compose, run_docker_action, write_compose_file, send_http_request,
+             start_tunnel, get_tunnel_log, stop_tunnel, run_db_query,
+             check_service, start_service,
+             check_install_status, quick_install_bulk,
+             get_config_files, read_config_file, get_disk_usage,
+         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

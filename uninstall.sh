@@ -43,12 +43,20 @@ case "$choice" in
 esac
 
 info "Target: Global Binary & Launcher"
-step "Removing /usr/local/bin/kydev..."
-sudo rm -f /usr/local/bin/kydev
-step "Removing App Launcher..."
-sudo rm -f /usr/share/applications/kydev.desktop
-sudo rm -f /usr/share/pixmaps/kydev.png
-sudo update-desktop-database /usr/share/applications || true
+if sudo -n true 2>/dev/null; then
+    step "Removing /usr/local/bin/kydev..."
+    sudo rm -f /usr/local/bin/kydev
+    step "Removing App Launcher..."
+    sudo rm -f /usr/share/applications/kydev.desktop
+    sudo rm -f /usr/share/pixmaps/kydev.png
+    sudo update-desktop-database /usr/share/applications || true
+else
+    echo -e "${B_YELLOW}│${NC}  Using user‑level uninstallation..."
+    rm -f "${HOME}/.local/bin/kydev"
+    rm -f "${HOME}/.local/share/applications/kydev.desktop"
+    rm -f "${HOME}/.local/share/icons/kydev.png"
+    update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+fi
 success "System integration eradicated."
 
 info "Target: Source Files"

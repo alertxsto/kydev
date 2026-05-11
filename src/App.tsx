@@ -32,6 +32,10 @@ function App() {
   const [active, setActive] = useState("projects");
   const [localVersion, setLocalVersion] = useState("");
   const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<"idle" | "running" | "success" | "error">("idle");
+  const [updateLog, setUpdateLog] = useState("");
+  const [updatePid, setUpdatePid] = useState<string | null>(null);
 
   useEffect(() => {
     const checkUpdate = async () => {
@@ -58,6 +62,38 @@ function App() {
     };
     checkUpdate();
   }, []);
+
+  useEffect(() => {
+    if (!updatePid || updateStatus !== "running") return;
+
+    const interval = setInterval(async () => {
+      const status = await invoke("check_update_status", { pid: updatePid });
+      setUpdateLog(status.log || "");
+      if (status.running !== "running") {
+        clearInterval(interval);
+        setUpdateStatus(status.success === "true" ? "success" : "error");
+        if (status.success === "true") {
+          setRemoteVersion(null);
+          setLocalVersion(await getVersion());
+        }
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [updatePid, updateStatus]);
+
+  const handleUpdate = async () => {
+    setUpdating(true);
+    setUpdateStatus("running");
+    setUpdateLog("Starting update...");
+    try {
+      const pid = await invoke("run_kydev_update");
+      setUpdatePid(pid);
+    } catch (e) {
+      setUpdateStatus("error");
+      setUpdateLog(`Failed: ${e}`);
+    }
+  };
 
   return (
     <div className="h-full flex text-base-content bg-base-100 font-sans selection:bg-primary selection:text-primary-content" data-theme="business">
@@ -96,7 +132,7 @@ function App() {
         </nav>
 
         {/* Update Notification */}
-        {remoteVersion && (
+        {updateStatus === "idle" && remoteVersion && (
           <div className="px-4 py-3 border-t border-primary/20 bg-primary/10 shrink-0">
             <p className="text-[10px] font-bold text-primary mb-2 flex items-center gap-2">
               <span className="relative flex h-2 w-2">
@@ -105,8 +141,66 @@ function App() {
               </span>
               Update v{remoteVersion} Available
             </p>
-            <button className="btn btn-xs btn-primary w-full shadow-lg shadow-primary/20" onClick={() => invoke("run_kydev_update")}>
-              Update Now
+            <button 
+              className="btn btn-xs btn-primary w-full shadow-lg shadow-primary/20" 
+              onClick={handleUpdate}
+              disabled={updating}
+            >
+              {updating ? "Update Starting..." : "Update Now"}
+            </button>
+          </div>
+        )}
+
+        {/* Update Progress */}
+        {updateStatus === "running" && (
+          <div className="px-4 py-3 border-t border-primary/20 bg-primary/10 shrink-0">
+            <p className="text-[10px] font-bold text-primary mb-2 flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-spin absolute inline-flex h-full w-full rounded-full bg-primary"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+              Updating KyDev...
+            </p>
+            <div className="bg-base-200 rounded p-2 text-[8px] font-mono text-primary overflow-x-auto">
+              {updateLog.split('\n').slice(-10).join('\n')}
+            </div>
+          </div>
+        )}
+
+        {/* Update Success */}
+        {updateStatus === "success" && (
+          <div className="px-4 py-3 border-t border-green-500/20 bg-green-500/10 shrink-0">
+            <p className="text-[10px] font-bold text-green-500 mb-2 flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              Update Complete!
+            </p>
+            <button 
+              className="btn btn-xs btn-success w-full shadow-lg shadow-green-500/20"
+              onClick={() => {
+                window.location.reload();
+              }}
+            >
+              Relaunch KyDev
+            </button>
+          </div>
+        )}
+
+        {/* Update Error */}
+        {updateStatus === "error" && (
+          <div className="px-4 py-3 border-t border-red-500/20 bg-red-500/10 shrink-0">
+            <p className="text-[10px] font-bold text-red-500 mb-2 flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              Update Failed
+            </p>
+            <button 
+              className="btn btn-xs btn-outline w-full"
+              onClick={() => setUpdateStatus("idle")}
+            >
+              Try Again
             </button>
           </div>
         )}
