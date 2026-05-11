@@ -42,10 +42,14 @@ case "$choice" in
   * ) echo -e "\n${B_CYAN}Aborting. KyDev lives another day!${NC}"; exit 0;;
 esac
 
-info "Target: Global Binary"
+info "Target: Global Binary & Launcher"
 step "Removing /usr/local/bin/kydev..."
 sudo rm -f /usr/local/bin/kydev
-success "Binary eradicated."
+step "Removing App Launcher..."
+sudo rm -f /usr/share/applications/kydev.desktop
+sudo rm -f /usr/share/pixmaps/kydev.png
+sudo update-desktop-database /usr/share/applications || true
+success "System integration eradicated."
 
 info "Target: Source Files"
 step "Wiping ~/.kydev directory..."

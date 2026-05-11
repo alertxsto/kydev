@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=KyDev
+Comment=The Ultimate Linux Developer Toolbox
+Exec=/usr/local/bin/kydev
+Icon=kydev
+Terminal=false
+Categories=Development;Utility;System;
+StartupNotify=true

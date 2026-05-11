@@ -59,9 +59,9 @@ npm run tauri build 2>&1 | sed -e "s/^/    ${B_YELLOW}│${NC}  /"
 success "Binary successfully forged."
 
 info "Deploying Updates"
-step "Applying updates to system binary (Password may be required)..."
-pkexec cp src-tauri/target/release/kydev /usr/local/bin/kydev
-success "Global binary replaced."
+step "Applying updates to system binary & launcher (Password may be required)..."
+pkexec bash -c "cp src-tauri/target/release/kydev /usr/local/bin/kydev && cp src-tauri/icons/128x128.png /usr/share/pixmaps/kydev.png && cp kydev.desktop /usr/share/applications/kydev.desktop && update-desktop-database /usr/share/applications"
+success "Global binary and launcher replaced."
 
 echo -e "\n${B_GREEN}   ╔═══════════════════════════════════════════════════╗${NC}"
 echo -e "${B_GREEN}   ║             ✨ UPGRADE COMPLETE! ✨               ║${NC}"

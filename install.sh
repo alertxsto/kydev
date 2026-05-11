@@ -74,9 +74,29 @@ npm run tauri build 2>&1 | sed -e "s/^/    ${B_YELLOW}│${NC}  /"
 success "Rust binary compiled successfully."
 
 info "Elevating Privileges"
-step "Moving binary to /usr/local/bin for global access..."
-sudo cp src-tauri/target/release/kydev /usr/local/bin/kydev
-success "Global execution access granted."
+if sudo -n true 2>/dev/null; then
+    step "Moving binary to /usr/local/bin for global access..."
+    sudo cp src-tauri/target/release/kydev /usr/local/bin/kydev
+    step "Registering Desktop Application Menu..."
+    sudo cp src-tauri/icons/128x128.png /usr/share/pixmaps/kydev.png
+    sudo cp kydev.desktop /usr/share/applications/kydev.desktop
+    sudo update-desktop-database /usr/share/applications || true
+else
+    echo -e "${B_YELLOW}│${NC}  Menggunakan instalasi user-level (tanpa sudo)..."
+    shift
+    mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/applications" "${HOME}/.local/share/icons"
+    cp src-tauri/target/release/kydev "${HOME}/.local/bin/kydev"
+    chmod +x "${HOME}/.local/bin/kydev"
+    cp src-tauri/icons/128x128.png "${HOME}/.local/share/icons/kydev.png"
+    cp kydev.desktop "${HOME}/.local/share/applications/kydev.desktop"
+    sed -i "s|Exec=/usr/local/bin/kydev|Exec=${HOME}/.local/bin/kydev|g" "${HOME}/.local/share/applications/kydev.desktop"
+    sed -i "s|Icon=kydev|Icon=${HOME}/.local/share/icons/kydev.png|g" "${HOME}/.local/share/applications/kydev.desktop"
+    chmod 644 "${HOME}/.local/share/applications/kydev.desktop"
+    update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+    echo -e "${B_CYAN}│${NC}  Tambahkan ${B_MAGENTA}${HOME}/.local/bin${B_CYAN} ke PATH jika belum."
+fi
+
+success "System integration complete."
 
 echo -e "\n${B_GREEN}   ╔═══════════════════════════════════════════════════╗${NC}"
 echo -e "${B_GREEN}   ║ ✨ BOOM! KYDEV HAS BEEN SUCCESSFULLY INSTALLED! ✨ ║${NC}"

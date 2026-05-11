@@ -463,6 +463,11 @@ fn read_config_file(path: String) -> String {
 #[tauri::command]
 fn get_disk_usage() -> String { run_cmd("sh", &["-c", "df -h / | tail -1 | awk '{print $3 \" / \" $2 \" (\" $5 \")\"}'"]) }
 
+#[tauri::command]
+async fn run_kydev_update() -> String {
+    run_cmd("sh", &["-c", "bash ~/.kydev/update.sh > /tmp/kydev_update.log 2>&1 & echo $!"])
+}
+
 // ── App Entry ─────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -471,7 +476,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_system_info, check_updates, preview_updates, run_update, run_cleanup, get_dnf_history,
-            scan_projects, run_project_script, open_in_editor, scaffold_project,
+            scan_projects, run_project_script, open_in_editor, scaffold_project, run_kydev_update,
             list_ports, kill_process,
             search_packages, get_package_details, install_package, remove_package,
             get_containers, run_docker_compose, run_docker_action, write_compose_file, send_http_request,

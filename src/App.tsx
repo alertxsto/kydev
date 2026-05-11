@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import Projects from "./pages/Projects";
 import Ports from "./pages/Ports";
 import Config from "./pages/Config";
@@ -28,8 +30,34 @@ const navItems = [
 
 function App() {
   const [active, setActive] = useState("projects");
+  const [localVersion, setLocalVersion] = useState("");
+  const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
 
-
+  useEffect(() => {
+    const checkUpdate = async () => {
+      try {
+        const ver = await getVersion();
+        setLocalVersion(ver);
+        const res = await fetch("https://raw.githubusercontent.com/alertxsto/kydev/main/package.json");
+        const data = await res.json();
+        if (data.version && data.version !== ver) {
+          const remoteParts = data.version.split('.').map(Number);
+          const localParts = ver.split('.').map(Number);
+          let isNewer = false;
+          for (let i = 0; i < 3; i++) {
+            if (remoteParts[i] > localParts[i]) { isNewer = true; break; }
+            if (remoteParts[i] < localParts[i]) { break; }
+          }
+          if (isNewer) {
+            setRemoteVersion(data.version);
+          }
+        }
+      } catch (e) {
+        console.error("Update check failed:", e);
+      }
+    };
+    checkUpdate();
+  }, []);
 
   return (
     <div className="h-full flex text-base-content bg-base-100 font-sans selection:bg-primary selection:text-primary-content" data-theme="business">
@@ -67,9 +95,25 @@ function App() {
           })}
         </nav>
 
+        {/* Update Notification */}
+        {remoteVersion && (
+          <div className="px-4 py-3 border-t border-primary/20 bg-primary/10 shrink-0">
+            <p className="text-[10px] font-bold text-primary mb-2 flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+              Update v{remoteVersion} Available
+            </p>
+            <button className="btn btn-xs btn-primary w-full shadow-lg shadow-primary/20" onClick={() => invoke("run_kydev_update")}>
+              Update Now
+            </button>
+          </div>
+        )}
+
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-base-content/10 bg-base-200">
-          <p className="text-[10px] text-base-content/40 font-mono">v0.5.1</p>
+        <div className="px-4 py-2 border-t border-base-content/10 bg-base-200 shrink-0">
+          <p className="text-[10px] text-base-content/40 font-mono">v{localVersion || "0.5.1"}</p>
         </div>
       </aside>
 
