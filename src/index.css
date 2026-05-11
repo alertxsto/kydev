@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'JetBrainsMono Nerd Font', 'Fira Code', monospace;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #181825;
+}
+::-webkit-scrollbar-thumb {
+  background: #45475a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #585b70;
+}
+
+/* Sidebar active link */
+.sidebar-link.active {
+  @apply bg-primary/10 text-primary border-l-2 border-primary;
+}
+.sidebar-link {
+  @apply flex items-center gap-3 px-4 py-2.5 text-sm text-neutral-content/70 hover:text-neutral-content hover:bg-base-200 transition-all duration-150 border-l-2 border-transparent;
+}
+
+/* Card hover effect */
+.card-hover {
+  @apply transition-all duration-200 hover:shadow-lg hover:shadow-primary/5;
+}
+
+/* Metric value styling */
+.metric-value {
+  @apply text-2xl font-bold;
+}
+.metric-label {
+  @apply text-xs text-neutral-content/60 uppercase tracking-wider;
+}
+
+/* Progress bar animation */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.loading-bar {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
