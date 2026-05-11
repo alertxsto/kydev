@@ -666,6 +666,95 @@ fn load_state_file() -> String {
     std::fs::read_to_string(&path).unwrap_or_default()
 }
 
+// ── Hermes Agent Commands ──────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct HermesInfo {
+    pub installed: bool,
+    pub version: String,
+    pub path: String,
+}
+
+#[tauri::command]
+async fn hermes_check_installed() -> HermesInfo {
+    let path = run_cmd("sh", &["-c", "command -v hermes 2>/dev/null"]);
+    let installed = !path.is_empty() && !path.contains("not found");
+    let version = if installed { run_cmd("hermes", &["--version"]) } else { String::new() };
+    HermesInfo { installed, version, path }
+}
+
+#[tauri::command]
+async fn hermes_gateway_action(action: String) -> String {
+    let mut args = vec!["gateway"];
+    for p in action.split_whitespace() { args.push(p); }
+    run_cmd("hermes", &args)
+}
+
+#[tauri::command]
+async fn hermes_env_read() -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    std::fs::read_to_string(format!("{}/.hermes/.env", home)).unwrap_or_default()
+}
+
+#[tauri::command]
+async fn hermes_env_write(content: String) -> Result<String, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    std::fs::write(format!("{}/.hermes/.env", home), &content).map(|_| "ok".into()).map_err(|e| format!("Write failed: {}", e))
+}
+
+#[tauri::command]
+async fn hermes_config_read() -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    std::fs::read_to_string(format!("{}/.hermes/config.yaml", home)).unwrap_or_default()
+}
+
+#[tauri::command]
+async fn hermes_config_set(key: String, value: String) -> String {
+    run_cmd("hermes", &["config", "set", &key, &value])
+}
+
+#[tauri::command]
+async fn hermes_get_logs(log_type: String, lines: u32) -> String {
+    run_cmd("hermes", &["logs", &log_type, "-n", &lines.to_string()])
+}
+
+#[tauri::command]
+async fn hermes_sessions_list() -> String {
+    run_cmd("hermes", &["sessions", "list"])
+}
+
+#[tauri::command]
+async fn hermes_cron_list() -> String {
+    run_cmd("hermes", &["cron", "list"])
+}
+
+#[tauri::command]
+async fn hermes_cron_create(schedule: String, prompt: Option<String>, name: Option<String>, deliver: Option<String>, repeat: Option<u32>) -> String {
+    let mut args: Vec<String> = vec!["cron".into(), "create".into()];
+    if let Some(ref n) = name { args.push("--name".into()); args.push(n.clone()); }
+    if let Some(ref d) = deliver { args.push("--deliver".into()); args.push(d.clone()); }
+    if let Some(r) = repeat { args.push("--repeat".into()); args.push(r.to_string()); }
+    args.push(schedule);
+    if let Some(p) = prompt { args.push(p); }
+    let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    run_cmd("hermes", &arg_refs)
+}
+
+#[tauri::command]
+async fn hermes_cron_remove(job_id: String) -> String {
+    run_cmd("hermes", &["cron", "remove", &job_id])
+}
+
+#[tauri::command]
+async fn hermes_run_doctor() -> String {
+    run_cmd("hermes", &["doctor"])
+}
+
+#[tauri::command]
+async fn hermes_get_status() -> String {
+    run_cmd("hermes", &["status", "--all"])
+}
+
 // ── App Entry ─────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -685,6 +774,10 @@ pub fn run() {
              check_service, start_service,
              check_install_status, quick_install_bulk,
              get_config_files, read_config_file, get_disk_usage,
+             hermes_check_installed, hermes_gateway_action, hermes_env_read, hermes_env_write,
+             hermes_config_read, hermes_config_set, hermes_get_logs,
+             hermes_sessions_list, hermes_cron_list, hermes_cron_create, hermes_cron_remove,
+             hermes_run_doctor, hermes_get_status,
          ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

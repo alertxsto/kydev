@@ -1892,7 +1892,7 @@ dependencies = [
 
 [[package]]
 name = "kydev"
-version = "0.6.4"
+version = "0.8.0"
 dependencies = [
  "chrono",
  "serde",

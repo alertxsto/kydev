@@ -14,10 +14,11 @@ import Tunnel from "./pages/Tunnel";
 import DatabaseStudio from "./pages/Database";
 import Git from "./pages/Git";
 import Dashboard from "./pages/Dashboard";
+import Hermes from "./pages/Hermes";
 import {
   TbFolder, TbBolt, TbBox, TbNetwork, TbTools, TbSettings, TbTool, TbWand,
   TbBrandDocker, TbApi, TbWorldWww, TbDatabase, TbGitBranch, TbLayoutDashboard,
-  TbArrowBarLeft, TbArrowBarRight,
+  TbArrowBarLeft, TbArrowBarRight, TbMessageChatbot,
 } from "react-icons/tb";
 
 const navItems = [
@@ -34,6 +35,7 @@ const navItems = [
   { id: "devtools", label: "DevTools", icon: TbTools },
   { id: "git", label: "Git", icon: TbGitBranch },
   { id: "config", label: "Config", icon: TbSettings },
+  { id: "hermes", label: "Hermes", icon: TbMessageChatbot },
 ];
 
 interface UpdateStatus {
@@ -138,6 +140,7 @@ function App() {
     devtools: <DevTools />,
     git: <Git />,
     config: <Config />,
+    hermes: <Hermes />,
   };
 
   return (
