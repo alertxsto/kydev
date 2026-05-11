@@ -36,7 +36,7 @@ echo -e "${NC}"
 typewriter "       :: KYDEV UNINSTALLATION SEQUENCE ::" 0.01
 echo -e " ${B_YELLOW}═════════════════════════════════════════════════════════${NC}\n"
 
-read -p "$(echo -e "${B_RED}[!] Are you sure you want to permanently obliterate KyDev? [y/N]: ${NC}")" choice
+read -p "$(echo -e "${B_RED}[!] Are you sure you want to permanently obliterate KyDev? [y/N]: ${NC}")" choice </dev/tty
 case "$choice" in 
   y|Y ) echo "";;
   * ) echo -e "\n${B_CYAN}Aborting. KyDev lives another day!${NC}"; exit 0;;

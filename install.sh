@@ -12,8 +12,8 @@ typewriter() {
     local text="$1"
     local delay="${2:-0.01}"
     for (( i=0; i<${#text}; i++ )); do
-        printf "${text:$i:1}"
-        sleep $delay
+        printf "%s" "${text:$i:1}"
+        sleep "$delay"
     done
     echo ""
 }
@@ -43,7 +43,7 @@ echo -e " ${B_CYAN}❖ ARCH:${NC} $(uname -m)"
 echo -e " ${B_CYAN}❖ NODE:${NC} $(node -v 2>/dev/null || echo 'Not installed')"
 echo -e " ${B_CYAN}❖ RUST:${NC} $(cargo -V 2>/dev/null || echo 'Not installed')\n"
 
-read -p "$(echo -e "${B_MAGENTA}[?] Initiate KyDev Forging Sequence? [Y/n]: ${NC}")" choice
+read -p "$(echo -e "${B_MAGENTA}[?] Initiate KyDev Forging Sequence? [Y/n]: ${NC}")" choice </dev/tty
 case "$choice" in 
   n|N ) echo -e "\n${B_RED}Sequence aborted.${NC}"; exit 0;;
   * ) echo "";;
@@ -83,7 +83,6 @@ if sudo -n true 2>/dev/null; then
     sudo update-desktop-database /usr/share/applications || true
 else
     echo -e "${B_YELLOW}│${NC}  Menggunakan instalasi user-level (tanpa sudo)..."
-    shift
     mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/applications" "${HOME}/.local/share/icons"
     cp src-tauri/target/release/kydev "${HOME}/.local/bin/kydev"
     chmod +x "${HOME}/.local/bin/kydev"
