@@ -1,19 +1,19 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 
-B_MAGENTA='\033[1;35m'
-B_CYAN='\033[1;36m'
-B_GREEN='\033[1;32m'
-B_YELLOW='\033[1;33m'
-B_RED='\033[1;31m'
-NC='\033[0m'
+B_MAGENTA=$'\033[1;35m'
+B_CYAN=$'\033[1;36m'
+B_GREEN=$'\033[1;32m'
+B_YELLOW=$'\033[1;33m'
+B_RED=$'\033[1;31m'
+NC=$'\033[0m'
 
 typewriter() {
     local text="$1"
     local delay="${2:-0.01}"
     for (( i=0; i<${#text}; i++ )); do
-        printf "${text:$i:1}"
-        sleep $delay
+        printf "%s" "${text:$i:1}"
+        sleep "$delay"
     done
     echo ""
 }
