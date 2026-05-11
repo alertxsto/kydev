@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   TbRefresh, TbPlayerPlayFilled, TbPlayerStopFilled, TbRotateClockwise2,
   TbDownload, TbTrash, TbStethoscope, TbSettings, TbPlus,
-  TbAlertTriangle, TbX, TbRobot,
+  TbAlertTriangle, TbX, TbRobot, TbTrashX,
 } from "react-icons/tb";
 import HermesPlatformCard, { type PlatformDef } from "../components/HermesPlatformCard";
 import HermesConfigModal from "../components/HermesConfigModal";
@@ -100,6 +100,7 @@ export default function Hermes() {
   const [configPlatform, setConfigPlatform] = useState<PlatformDef | null>(null);
   const [cronOutput, setCronOutput] = useState("");
   const [cronForm, setCronForm] = useState({ schedule: "", name: "", prompt: "", deliver: "origin", show: false });
+  const [cronRemoveId, setCronRemoveId] = useState("");
   const [sessionsOutput, setSessionsOutput] = useState("");
   const [statusOutput, setStatusOutput] = useState("");
   const [logType, setLogType] = useState("gateway");
@@ -202,6 +203,16 @@ export default function Hermes() {
         repeat: null,
       });
       setCronForm({ schedule: "", name: "", prompt: "", deliver: "origin", show: false });
+      const c = await invoke<string>("hermes_cron_list");
+      setCronOutput(c);
+    } catch (e) { console.error(e); }
+  }
+
+  async function handleCronRemove() {
+    if (!cronRemoveId) return;
+    try {
+      await invoke<string>("hermes_cron_remove", { jobId: cronRemoveId });
+      setCronRemoveId("");
       const c = await invoke<string>("hermes_cron_list");
       setCronOutput(c);
     } catch (e) { console.error(e); }
@@ -352,7 +363,7 @@ export default function Hermes() {
                     Stop
                   </button>
                 ) : (
-                  <button onClick={() => gatewayAction("start")} disabled={actionLoading === "start" || !info?.installed} className="btn btn-sm btn-soft btn-success gap-1.5">
+                  <button onClick={() => gatewayAction("start")} disabled={actionLoading === "start" || !info?.installed || gatewayNotInstalled} className="btn btn-sm btn-soft btn-success gap-1.5">
                     {actionLoading === "start" ? <span className="loading loading-spinner loading-xs" /> : <TbPlayerPlayFilled size={14} />}
                     Start
                   </button>
@@ -515,13 +526,24 @@ export default function Hermes() {
             </div>
           )}
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               {!cronForm.show && (
                 <button onClick={() => setCronForm(p => ({ ...p, show: true }))} className="btn btn-sm btn-primary gap-1.5">
                   <TbPlus size={14} /> New Job
                 </button>
               )}
+              <div className="flex items-center gap-1.5">
+                <input
+                  className="input input-xs w-36 bg-base-300/50 border-base-content/20 text-[11px]"
+                  placeholder="Job ID to delete"
+                  value={cronRemoveId}
+                  onChange={e => setCronRemoveId(e.target.value)}
+                />
+                <button onClick={handleCronRemove} disabled={!cronRemoveId} className="btn btn-xs btn-soft btn-error gap-1">
+                  <TbTrashX size={12} /> Delete
+                </button>
+              </div>
             </div>
             <button onClick={() => refreshTab("cron")} className="btn btn-ghost btn-xs gap-1.5 text-base-content/40 hover:text-base-content">
               <TbRefresh size={14} /> Refresh
@@ -583,7 +605,6 @@ export default function Hermes() {
                     <option value="deepseek">DeepSeek</option>
                     <option value="ollama">Ollama</option>
                     <option value="bedrock">AWS Bedrock</option>
-                    <option value="openrouter">OpenRouter</option>
                   </select>
                 </div>
                 <div>
