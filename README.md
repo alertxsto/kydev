@@ -8,6 +8,20 @@
 
 Forget keeping 10 different terminal windows open for logs, database queries, and port forwarding. KyDev brings it all into one sleek, high-performance desktop application built with **Rust** and **Tauri**.
 
+## ⚡ Quick Install (Copy & Paste)
+
+For Fedora/RHEL users, you can install and build KyDev instantly by pasting this into your terminal:
+
+```bash
+sudo dnf install -y webkit2gtk4.1-devel curl wget openssl-devel libappindicator-gtk3-devel librsvg2-devel && \
+git clone https://github.com/alertxsto/kydev.git ~/.kydev && \
+cd ~/.kydev && \
+npm install && \
+npm run tauri build && \
+sudo cp src-tauri/target/release/kydev /usr/local/bin/kydev && \
+echo "✅ KyDev installed! Type 'kydev' in your terminal to launch."
+```
+
 ## 🚀 Key Features
 
 - **Mega Environments (Quick Install)**: 1-click bootstrap for 100+ developer toolchains.
