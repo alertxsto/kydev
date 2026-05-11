@@ -651,16 +651,38 @@ fn check_update_status(pid: String) -> HashMap<String, String> {
     result
 }
 
+// ── Workspace State Persistence ───────────────────────────────────────
+
+#[tauri::command]
+fn save_state_file(state: String) -> Result<String, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let dir = format!("{}/.config/kydev", home);
+    let path = format!("{}/state.json", dir);
+    let _ = std::fs::create_dir_all(&dir);
+    match std::fs::write(&path, &state) {
+        Ok(_) => Ok("ok".into()),
+        Err(e) => Err(format!("Failed to save state: {}", e)),
+    }
+}
+
+#[tauri::command]
+fn load_state_file() -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let path = format!("{}/.config/kydev/state.json", home);
+    std::fs::read_to_string(&path).unwrap_or_default()
+}
+
 // ── App Entry ─────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-          .invoke_handler(tauri::generate_handler![
+         .invoke_handler(tauri::generate_handler![
               get_system_info, check_updates, preview_updates, run_update, run_cleanup, get_dnf_history,
               scan_projects, run_project_script, open_in_editor, scaffold_project, run_kydev_update, check_update_status,
               git_current_branch, git_status, git_diff, git_stage, git_unstage, git_commit, git_push, git_pull, git_log, git_branches, git_checkout,
+              save_state_file, load_state_file,
               list_ports, kill_process,
              search_packages, get_package_details, install_package, remove_package,
              get_containers, run_docker_compose, run_docker_action, write_compose_file, send_http_request,

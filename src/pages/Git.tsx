@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   TbGitBranch, TbGitCommit, TbArrowUp, TbArrowDown,
@@ -36,6 +36,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 export default function Git() {
   const [repoPath, setRepoPath] = useState("");
   const [inputPath, setInputPath] = useState("");
+  const [recentRepos, setRecentRepos] = useState<string[]>([]);
   const [branch, setBranch] = useState("");
   const [statusFiles, setStatusFiles] = useState<GitStatusFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<GitStatusFile | null>(null);
@@ -48,6 +49,20 @@ export default function Git() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    invoke<string>("load_state_file").then((raw) => {
+      if (!raw) return;
+      try {
+        const s = JSON.parse(raw);
+        if (s.recentGitRepos) setRecentRepos(s.recentGitRepos);
+      } catch {}
+    }).catch(() => {});
+  }, []);
+
+  const saveRecentRepos = (repos: string[]) => {
+    invoke("save_state_file", { state: JSON.stringify({ recentGitRepos: repos }) }).catch(() => {});
+  };
 
   const loadRepo = async (path: string) => {
     setLoading(true);
@@ -68,6 +83,9 @@ export default function Git() {
       setBranch(br);
       setStatusFiles(st);
       setInputPath(path);
+      const updated = [path, ...recentRepos.filter((r) => r !== path)].slice(0, 8);
+      setRecentRepos(updated);
+      saveRecentRepos(updated);
     } catch (e) {
       setError(`${e}`);
     }
@@ -272,6 +290,22 @@ export default function Git() {
             {loading ? <span className="loading loading-spinner loading-xs" /> : "Open"}
           </button>
         </div>
+        {recentRepos.length > 0 && (
+          <div className="mt-4 w-full max-w-md">
+            <div className="text-[10px] uppercase tracking-wider text-base-content/40 font-bold mb-2 px-1">Recent</div>
+            <div className="flex flex-col gap-1">
+              {recentRepos.map((r) => (
+                <button
+                  key={r}
+                  className="text-left text-xs font-mono px-2 py-1.5 rounded hover:bg-base-200 transition-colors truncate"
+                  onClick={() => { setInputPath(r); loadRepo(r); }}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {error && <div className="text-xs text-error mt-3">{error}</div>}
       </div>
     );

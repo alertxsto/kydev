@@ -39,6 +39,26 @@ interface UpdateStatus {
 function App() {
   const [active, setActive] = useState("projects");
   const [localVersion, setLocalVersion] = useState("");
+
+  useEffect(() => {
+    invoke<string>("load_state_file").then((raw) => {
+      if (!raw) return;
+      try {
+        const state = JSON.parse(raw);
+        if (state.activeTab) setActive(state.activeTab);
+      } catch {}
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const state = JSON.stringify({ activeTab: active });
+    invoke("save_state_file", { state }).catch(() => {});
+
+    const interval = setInterval(() => {
+      invoke("save_state_file", { state }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [active]);
   const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<"idle" | "running" | "success" | "error">("idle");
