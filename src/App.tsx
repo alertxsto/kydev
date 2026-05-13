@@ -18,11 +18,14 @@ import Hermes from "./pages/Hermes";
 import CommandPalette from "./components/CommandPalette";
 import Services from "./pages/Services";
 import EnvStudio from "./pages/EnvStudio";
+import SnippetVault from "./pages/SnippetVault";
+import SshManager from "./pages/SshManager";
+import QuickNotes from "./components/QuickNotes";
 import {
   TbFolder, TbBolt, TbBox, TbNetwork, TbTools, TbSettings, TbWand,
   TbBrandDocker, TbApi, TbWorldWww, TbDatabase, TbGitBranch, TbLayoutDashboard,
   TbMessageChatbot, TbServer, TbLock, TbChevronLeft, TbChevronRight,
-  TbPalette,
+  TbPalette, TbTerminal2, TbServer2, TbNotes,
 } from "react-icons/tb";
 
 // ── Nav Groups ────────────────────────────────────────────────────────
@@ -52,6 +55,7 @@ const navGroups = [
       { id: "database", label: "Databases", icon: TbDatabase },
       { id: "tunnel", label: "Tunneling", icon: TbWorldWww },
       { id: "network", label: "Network", icon: TbNetwork },
+      { id: "ssh", label: "SSH Manager", icon: TbServer2 },
     ],
   },
   {
@@ -60,6 +64,7 @@ const navGroups = [
       { id: "env", label: "Env Studio", icon: TbLock },
       { id: "environments", label: "Environments", icon: TbBolt },
       { id: "packages", label: "Packages", icon: TbBox },
+      { id: "snippets", label: "Snippet Vault", icon: TbTerminal2 },
     ],
   },
   {
@@ -101,6 +106,7 @@ function App() {
   const [updateStatus, setUpdateStatus] = useState<"idle" | "running" | "success" | "error">("idle");
   const [updateLog, setUpdateLog] = useState("");
   const [updatePid, setUpdatePid] = useState<string | null>(null);
+  const [showNotes, setShowNotes] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
 
   // ── Persistence ───────────────────────────────────────────────────
@@ -172,8 +178,8 @@ function App() {
   const pages: Record<string, React.ReactNode> = {
     dashboard: <Dashboard />, projects: <Projects />, scaffold: <Scaffolder />,
     docker: <DockerManager />, api: <ApiTester />, tunnel: <Tunnel />,
-    database: <DatabaseStudio />, services: <Services />, environments: <QuickInstall />,
-    env: <EnvStudio />, packages: <Search />, network: <Ports />,
+    database: <DatabaseStudio />, services: <Services />, ssh: <SshManager />, environments: <QuickInstall />,
+    env: <EnvStudio />, snippets: <SnippetVault />, packages: <Search />, network: <Ports />,
     devtools: <DevTools />, git: <Git />, config: <Config />, hermes: <Hermes />,
   };
 
@@ -346,15 +352,24 @@ function App() {
       </aside>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 overflow-hidden flex flex-col" style={{ background: "var(--color-base-100)" }}>
+      <main className="flex-1 overflow-hidden flex flex-col relative" style={{ background: "var(--color-base-100)" }}>
         {navItems.map((item) => (
           <div key={item.id} className={`h-full overflow-y-auto ${active === item.id ? "block" : "hidden"}`}>
             {pages[item.id]}
           </div>
         ))}
+        {/* Floating Notes Button */}
+        <button
+          className="fixed bottom-6 right-6 z-40 btn btn-circle btn-primary shadow-lg shadow-primary/30"
+          onClick={() => setShowNotes(p => !p)}
+          title="Quick Notes"
+        >
+          <TbNotes size={20} />
+        </button>
       </main>
 
       <CommandPalette items={navItems} onSelect={setActive} />
+      <QuickNotes open={showNotes} onClose={() => setShowNotes(false)} />
     </div>
   );
 }

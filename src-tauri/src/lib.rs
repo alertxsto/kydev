@@ -941,6 +941,171 @@ async fn find_env_files(root: String) -> Vec<String> {
     results
 }
 
+// ── Snippet Vault ──────────────────────────────────────────────────────
+
+fn snippets_path() -> std::path::PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
+    std::path::PathBuf::from(format!("{}/.local/share/kydev/snippets.json", home))
+}
+
+#[derive(Serialize, serde::Deserialize, Clone)]
+struct Snippet {
+    id: String,
+    title: String,
+    command: String,
+    tags: Vec<String>,
+}
+
+#[tauri::command]
+async fn get_snippets() -> Vec<Snippet> {
+    let path = snippets_path();
+    if !path.exists() { return vec![]; }
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap_or_default()).unwrap_or_default()
+}
+
+#[tauri::command]
+async fn save_snippets(snippets: Vec<Snippet>) -> Result<(), String> {
+    let path = snippets_path();
+    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).ok(); }
+    std::fs::write(path, serde_json::to_string_pretty(&snippets).unwrap_or_default())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn run_snippet(command: String) -> Result<String, String> {
+    run_async_cmd("sh", &["-c", &command]).await
+}
+
+// ── SSH Manager ────────────────────────────────────────────────────────
+
+#[derive(Serialize, serde::Deserialize, Clone)]
+struct SshHost {
+    alias: String,
+    hostname: String,
+    user: String,
+    port: String,
+    identity_file: String,
+}
+
+fn ssh_config_path() -> std::path::PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
+    std::path::PathBuf::from(format!("{}/.ssh/config", home))
+}
+
+#[tauri::command]
+async fn get_ssh_hosts() -> Vec<SshHost> {
+    let content = match std::fs::read_to_string(ssh_config_path()) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let mut hosts = Vec::new();
+    let mut current: Option<SshHost> = None;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.to_lowercase().starts_with("host ") && !trimmed.to_lowercase().starts_with("hostname") {
+            if let Some(h) = current.take() { if !h.alias.is_empty() && h.alias != "*" { hosts.push(h); } }
+            let alias = trimmed[5..].trim().to_string();
+            current = Some(SshHost { alias, hostname: "".into(), user: "".into(), port: "22".into(), identity_file: "".into() });
+        } else if let Some(ref mut h) = current {
+            if let Some((k, v)) = trimmed.split_once(' ') {
+                match k.to_lowercase().as_str() {
+                    "hostname" => h.hostname = v.trim().into(),
+                    "user" => h.user = v.trim().into(),
+                    "port" => h.port = v.trim().into(),
+                    "identityfile" => h.identity_file = v.trim().into(),
+                    _ => {}
+                }
+            }
+        }
+    }
+    if let Some(h) = current { if !h.alias.is_empty() && h.alias != "*" { hosts.push(h); } }
+    hosts
+}
+
+#[tauri::command]
+async fn add_ssh_host(host: SshHost) -> Result<(), String> {
+    let path = ssh_config_path();
+    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).ok(); }
+    let entry = format!(
+        "\nHost {}\n    HostName {}\n    User {}\n    Port {}\n{}\n",
+        host.alias, host.hostname, host.user, host.port,
+        if !host.identity_file.is_empty() { format!("    IdentityFile {}", host.identity_file) } else { "".into() }
+    );
+    let mut content = std::fs::read_to_string(&path).unwrap_or_default();
+    content.push_str(&entry);
+    std::fs::write(path, content).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn delete_ssh_host(alias: String) -> Result<(), String> {
+    let path = ssh_config_path();
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut output = String::new();
+    let mut skip = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.to_lowercase().starts_with("host ") && !trimmed.to_lowercase().starts_with("hostname") {
+            skip = trimmed[5..].trim() == alias;
+        }
+        if !skip { output.push_str(line); output.push('\n'); }
+    }
+    std::fs::write(path, output).map_err(|e| e.to_string())
+}
+
+// ── Quick Notes ────────────────────────────────────────────────────────
+
+fn notes_path() -> std::path::PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
+    std::path::PathBuf::from(format!("{}/.local/share/kydev/notes.md", home))
+}
+
+#[tauri::command]
+async fn get_notes() -> String {
+    std::fs::read_to_string(notes_path()).unwrap_or_default()
+}
+
+#[tauri::command]
+async fn save_notes(content: String) -> Result<(), String> {
+    let path = notes_path();
+    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).ok(); }
+    std::fs::write(path, content).map_err(|e| e.to_string())
+}
+
+// ── Enhanced Process Monitor ───────────────────────────────────────────
+
+#[derive(Serialize)]
+struct ProcessEntry {
+    pid: u32,
+    name: String,
+    port: u16,
+    proto: String,
+    state: String,
+}
+
+#[tauri::command]
+async fn list_processes() -> Vec<ProcessEntry> {
+    let out = run_cmd("sh", &["-c", "ss -tulnp 2>/dev/null | tail -n +2"]);
+    let mut entries = Vec::new();
+    for line in out.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 5 { continue; }
+        let proto = parts[0].to_string();
+        let state = parts[1].to_string();
+        let local_addr = parts[4];
+        let port: u16 = local_addr.rsplit(':').next().and_then(|p| p.parse().ok()).unwrap_or(0);
+        if port == 0 { continue; }
+        let process_info = parts.get(6).unwrap_or(&"");
+        let name = if let Some(start) = process_info.find("\"") {
+            let rest = &process_info[start+1..];
+            rest.split('\"').next().unwrap_or("unknown").to_string()
+        } else { "unknown".to_string() };
+        let pid: u32 = process_info.split("pid=").nth(1).and_then(|s| s.split(',').next()).and_then(|p| p.parse().ok()).unwrap_or(0);
+        entries.push(ProcessEntry { pid, name, port, proto, state });
+    }
+    entries.sort_by_key(|e| e.port);
+    entries
+}
+
 // ── App Entry ─────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -966,6 +1131,10 @@ pub fn run() {
              hermes_run_doctor, hermes_get_status,
              list_system_services, manage_service,
              read_env_file, write_env_file, find_env_files,
+             get_snippets, save_snippets, run_snippet,
+             get_ssh_hosts, add_ssh_host, delete_ssh_host,
+             get_notes, save_notes,
+             list_processes,
          ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
