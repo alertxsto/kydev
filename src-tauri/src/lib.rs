@@ -88,6 +88,36 @@ fn fmt_seconds(secs: u64) -> String {
     if h > 0 { format!("{}h {}m", h, m) } else { format!("{}m", m) }
 }
 
+/// Per-user app data (snippets, notes, tunnel/update logs).
+fn kydev_data_dir() -> Result<std::path::PathBuf, String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+    let dir = std::path::PathBuf::from(home).join(".local/share/kydev");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+fn sh_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+fn is_safe_systemd_unit(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 240
+        && !name.contains("..")
+        && name.chars().all(|c| {
+            c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '@' | ':')
+        })
+}
+
+/// Safe token for `dnf install -y <name>` fallback (avoids shell injection from UI).
+fn is_safe_dnf_atom(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 120
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+'))
+}
+
 // ── Existing Commands (Enhanced) ───────────────────────────────────────
 
 #[tauri::command]
@@ -561,12 +591,23 @@ async fn send_http_request(method: String, url: String, body: String, headers: S
 
 #[tauri::command]
 async fn start_tunnel(port: u16) -> String {
-    run_cmd("sh", &["-c", &format!("npx localtunnel --port {} > /tmp/kydev_tunnel.log 2>&1 & echo $!", port)])
+    let log_path = match kydev_data_dir() {
+        Ok(dir) => dir.join("tunnel.log"),
+        Err(e) => return format!("Error: {}", e),
+    };
+    let q = sh_single_quote(&log_path.to_string_lossy());
+    run_cmd(
+        "sh",
+        &["-c", &format!("npx localtunnel --port {} > {} 2>&1 & echo $!", port, q)],
+    )
 }
 
 #[tauri::command]
 async fn get_tunnel_log() -> String {
-    std::fs::read_to_string("/tmp/kydev_tunnel.log").unwrap_or_default()
+    match kydev_data_dir() {
+        Ok(dir) => std::fs::read_to_string(dir.join("tunnel.log")).unwrap_or_default(),
+        Err(_) => String::new(),
+    }
 }
 
 #[tauri::command]
@@ -577,13 +618,40 @@ async fn stop_tunnel(pid: String) -> String {
 // ── Local DB Studio & System Services ───────────────────────────────────
 
 #[tauri::command]
-async fn check_service(name: String) -> bool {
-    run_cmd("sh", &["-c", &format!("systemctl is-active {}", name)]).trim() == "active"
+fn check_service(name: String) -> bool {
+    if !is_safe_systemd_unit(&name) {
+        return false;
+    }
+    Command::new("systemctl")
+        .args(["is-active", &name])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "active")
+        .unwrap_or(false)
 }
 
 #[tauri::command]
 async fn start_service(name: String) -> String {
-    run_cmd("sh", &["-c", &format!("pkexec systemctl start {} 2>&1", name)])
+    if !is_safe_systemd_unit(&name) {
+        return "Invalid service name".into();
+    }
+    match tokio::process::Command::new("pkexec")
+        .args(["systemctl", "start", &name])
+        .output()
+        .await
+    {
+        Ok(o) => {
+            let out = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            let err = String::from_utf8_lossy(&o.stderr).trim().to_string();
+            if o.status.success() {
+                if out.is_empty() { err } else { out }
+            } else if err.is_empty() {
+                out
+            } else {
+                err
+            }
+        }
+        Err(e) => e.to_string(),
+    }
 }
 
 #[tauri::command]
@@ -639,35 +707,45 @@ async fn quick_install_bulk(envs: Vec<String>) -> String {
     let mut results = String::new();
     for env in envs {
         results.push_str(&format!("Installing {}...\n", env));
-        let cmd = match env.as_str() {
-            "node" => "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\" && nvm install --lts",
-            "bun" => "curl -fsSL https://bun.sh/install | bash",
-            "deno" => "curl -fsSL https://deno.land/install.sh | sh",
-            "rust" => "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
-            "go" => "pkexec dnf install -y golang",
-            "python" => "pkexec dnf install -y python3 python3-pip",
-            "java" => "pkexec dnf install -y java-17-openjdk-devel",
-            "c++" => "pkexec dnf group install -y \"C Development Tools and Libraries\"",
-            "postgres" => "pkexec sh -c 'dnf install -y postgresql-server postgresql-contrib && postgresql-setup --initdb && systemctl enable --now postgresql'",
-            "mysql" | "mariadb" => "pkexec sh -c 'dnf install -y mariadb-server && systemctl enable --now mariadb'",
-            "redis" => "pkexec sh -c 'dnf install -y redis && systemctl enable --now redis'",
-            "docker" => "pkexec sh -c 'dnf install -y moby-engine docker-compose && systemctl enable --now docker && usermod -aG docker $USER'",
-            "podman" => "pkexec dnf install -y podman",
-            "terraform" => "pkexec sh -c 'dnf install -y dnf-plugins-core && dnf config-manager --add-repo https://rpm.releases.hashicorp.com/fedora/hashicorp.repo && dnf -y install terraform'",
-            "aws" => "curl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o \"awscliv2.zip\" && unzip awscliv2.zip && pkexec ./aws/install",
-            "vscode" => "pkexec sh -c 'rpm --import https://packages.microsoft.com/keys/microsoft.asc && echo -e \"[code]\\nname=Visual Studio Code\\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\\nenabled=1\\ngpgcheck=1\\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc\" > /etc/yum.repos.d/vscode.repo && dnf install -y code'",
-            "antigravity" => "pkexec dnf install -y antigravity",
-            "opencode" => "pkexec dnf install -y opencode",
-            "terminal" => "pkexec dnf install -y kitty",
-            "gh" => "pkexec dnf install -y gh",
-            "tmux" => "pkexec dnf install -y tmux",
-            "bat" => "pkexec dnf install -y bat",
-            "eza" => "pkexec dnf install -y eza",
-            "ripgrep" => "pkexec dnf install -y ripgrep",
-            "fzf" => "pkexec dnf install -y fzf",
-            "jq" => "pkexec dnf install -y jq",
-            _ => "pkexec dnf install -y {}",
+        let (cmd, skip): (String, bool) = match env.as_str() {
+            "node" => ("curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\" && nvm install --lts".into(), false),
+            "bun" => ("curl -fsSL https://bun.sh/install | bash".into(), false),
+            "deno" => ("curl -fsSL https://deno.land/install.sh | sh".into(), false),
+            "rust" => ("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y".into(), false),
+            "go" => ("pkexec dnf install -y golang".into(), false),
+            "python" => ("pkexec dnf install -y python3 python3-pip".into(), false),
+            "java" => ("pkexec dnf install -y java-17-openjdk-devel".into(), false),
+            "c++" => ("pkexec dnf group install -y \"C Development Tools and Libraries\"".into(), false),
+            "postgres" => ("pkexec sh -c 'dnf install -y postgresql-server postgresql-contrib && postgresql-setup --initdb && systemctl enable --now postgresql'".into(), false),
+            "mysql" | "mariadb" => ("pkexec sh -c 'dnf install -y mariadb-server && systemctl enable --now mariadb'".into(), false),
+            "redis" => ("pkexec sh -c 'dnf install -y redis && systemctl enable --now redis'".into(), false),
+            "docker" => ("pkexec sh -c 'dnf install -y moby-engine docker-compose && systemctl enable --now docker && usermod -aG docker $USER'".into(), false),
+            "podman" => ("pkexec dnf install -y podman".into(), false),
+            "terraform" => ("pkexec sh -c 'dnf install -y dnf-plugins-core && dnf config-manager --add-repo https://rpm.releases.hashicorp.com/fedora/hashicorp.repo && dnf -y install terraform'".into(), false),
+            "aws" => ("curl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o \"awscliv2.zip\" && unzip awscliv2.zip && pkexec ./aws/install".into(), false),
+            "vscode" => ("pkexec sh -c 'rpm --import https://packages.microsoft.com/keys/microsoft.asc && echo -e \"[code]\\nname=Visual Studio Code\\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\\nenabled=1\\ngpgcheck=1\\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc\" > /etc/yum.repos.d/vscode.repo && dnf install -y code'".into(), false),
+            "antigravity" => ("pkexec dnf install -y antigravity".into(), false),
+            "opencode" => ("pkexec dnf install -y opencode".into(), false),
+            "terminal" => ("pkexec dnf install -y kitty".into(), false),
+            "gh" => ("pkexec dnf install -y gh".into(), false),
+            "tmux" => ("pkexec dnf install -y tmux".into(), false),
+            "bat" => ("pkexec dnf install -y bat".into(), false),
+            "eza" => ("pkexec dnf install -y eza".into(), false),
+            "ripgrep" => ("pkexec dnf install -y ripgrep".into(), false),
+            "fzf" => ("pkexec dnf install -y fzf".into(), false),
+            "jq" => ("pkexec dnf install -y jq".into(), false),
+            other => {
+                if !is_safe_dnf_atom(other) {
+                    (String::new(), true)
+                } else {
+                    (format!("pkexec dnf install -y {}", other), false)
+                }
+            }
         };
+        if skip {
+            results.push_str(&format!("Skipping invalid toolkit id: {}\n---\n", env));
+            continue;
+        }
         
         let out = if cmd.contains("{}") {
             run_cmd("sh", &["-c", &cmd.replace("{}", &env)])
@@ -705,7 +783,12 @@ fn get_disk_usage() -> String { run_cmd("sh", &["-c", "df -h / | tail -1 | awk '
 
 #[tauri::command]
 async fn run_kydev_update() -> Result<String, String> {
-    let pid = run_cmd("sh", &["-c", "bash ~/.kydev/update.sh > /tmp/kydev_update.log 2>&1 & echo $!"]);
+    let log_path = kydev_data_dir()?.join("update.log");
+    let q = sh_single_quote(&log_path.to_string_lossy());
+    let pid = run_cmd(
+        "sh",
+        &["-c", &format!("bash ~/.kydev/update.sh > {} 2>&1 & echo $!", q)],
+    );
     let pid = pid.trim().to_string();
     if pid.is_empty() {
         return Err("Failed to start update process".into());
@@ -716,12 +799,19 @@ async fn run_kydev_update() -> Result<String, String> {
 #[tauri::command]
 fn check_update_status(pid: String) -> HashMap<String, String> {
     let mut result = HashMap::new();
+    let pid = pid.trim();
+    if pid.is_empty() || !pid.chars().all(|c| c.is_ascii_digit()) {
+        result.insert("running".into(), "done".into());
+        result.insert("log".into(), "Invalid update process id".into());
+        result.insert("success".into(), "false".into());
+        return result;
+    }
     let is_running = run_cmd("sh", &["-c", &format!("kill -0 {} 2>/dev/null && echo running || echo done", pid)])
         .trim()
         .to_string();
     result.insert("running".into(), is_running.clone());
 
-    let log_output = match std::fs::read_to_string("/tmp/kydev_update.log") {
+    let log_output = match kydev_data_dir().and_then(|d| std::fs::read_to_string(d.join("update.log")).map_err(|e| e.to_string())) {
         Ok(content) => content.lines().rev().take(30).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n"),
         Err(_) => String::new(),
     };
@@ -857,14 +947,30 @@ struct ServiceEntry {
 
 #[tauri::command]
 async fn list_system_services() -> Vec<ServiceEntry> {
-    let out = run_cmd("systemctl", &["list-units", "--type=service", "--all", "--no-pager", "--plain", "--no-legend"]);
+    // Single batch call for active units
+    let units_out = run_cmd("systemctl", &["list-units", "--type=service", "--all", "--no-pager", "--plain", "--no-legend"]);
+    // Single batch call to get enabled state for all service files at once
+    let enabled_out = run_cmd("systemctl", &["list-unit-files", "--type=service", "--no-pager", "--plain", "--no-legend"]);
+    
+    // Build enabled map from batch output
+    let enabled_map: std::collections::HashMap<&str, bool> = enabled_out.lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let state = parts[1];
+                Some((parts[0], state == "enabled" || state == "enabled-runtime"))
+            } else { None }
+        })
+        .collect();
+
     let mut services = Vec::new();
-    for line in out.lines().take(60) {
+    for line in units_out.lines().take(80) {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 4 { continue; }
-        let name = parts[0].trim_end_matches('.').to_string();
+        let unit_name = parts[0];
+        let name = unit_name.trim_end_matches('.').to_string();
         let active = parts[2] == "active";
-        let enabled = run_cmd("systemctl", &["is-enabled", parts[0]]).trim().to_string() == "enabled";
+        let enabled = *enabled_map.get(unit_name).unwrap_or(&false);
         let description = parts[4..].join(" ");
         services.push(ServiceEntry { name, enabled, active, description });
     }

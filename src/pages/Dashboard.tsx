@@ -43,6 +43,14 @@ export default function Dashboard() {
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const startPolling = () => {
+    if (timerRef.current) return;
+    timerRef.current = setInterval(loadInfo, 5000);
+  };
+  const stopPolling = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  };
+
   const loadInfo = async () => {
     try {
       const sys = await invoke("get_system_info") as SystemInfo;
@@ -67,9 +75,16 @@ export default function Dashboard() {
       } catch (e) { console.error(e); }
     }
     init();
+    startPolling();
 
-    timerRef.current = setInterval(loadInfo, 3000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    // Pause polling when tab/window loses focus
+    const onVisible = () => document.hidden ? stopPolling() : startPolling();
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   if (loading) {

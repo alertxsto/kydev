@@ -12,7 +12,7 @@ fn run_cmd(cmd: &str, args: &[&str]) -> String {
 }
 ```
 This paradigm is used across all features:
-- **API Tester**: Uses `curl` to execute HTTP requests, returning the status, headers, and body.
+- **API Tester**: Uses the Rust **`reqwest`** HTTP client to execute requests from the native side, returning status, headers, and body without browser CORS limits.
 - **Docker**: Uses `docker ps` and `docker logs`.
 - **Database**: Uses `psql`, `mysql`, and `redis-cli` to execute raw queries string-escaped from the UI.
 
@@ -22,10 +22,12 @@ For actions requiring `sudo` (like DNF installs), KyDev uses `pkexec`.
 
 ## 3. Frontend Architecture
 The frontend is built for maximum speed and density:
-- **Framework**: React 18 (Vite)
+- **Framework**: React 19 (Vite)
 - **Styling**: TailwindCSS with `daisyUI`.
 - **Theme**: `business` theme, chosen for its professional, high-contrast, low-eyestrain aesthetic suitable for long coding sessions.
 - **Icons**: `react-icons/tb` (Tabler Icons) for unified, professional, monolinear system iconography.
 
 ## 4. State Management
 State is localized within page components. Communication with the backend is done purely asynchronously via Tauri's `invoke` API, ensuring the UI thread is never blocked, even when installing large packages or scaffolding Next.js applications.
+
+Tunnel and in-app update logs are written under **`~/.local/share/kydev/`** (created on demand), keeping per-user artifacts off a shared global `/tmp` path.

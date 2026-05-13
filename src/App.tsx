@@ -173,14 +173,34 @@ function App() {
     catch (e) { setUpdateStatus("error"); setUpdateLog(`Failed: ${e}`); }
   };
 
-  // ── Pages ─────────────────────────────────────────────────────────
+  // ── Visited pages cache (keep mounted once visited, never re-mount) ──
+  const [visited, setVisited] = useState<Set<string>>(new Set(["dashboard"]));
+  useEffect(() => {
+    setVisited(prev => new Set([...prev, active]));
+  }, [active]);
 
-  const pages: Record<string, React.ReactNode> = {
-    dashboard: <Dashboard />, projects: <Projects />, scaffold: <Scaffolder />,
-    docker: <DockerManager />, api: <ApiTester />, tunnel: <Tunnel />,
-    database: <DatabaseStudio />, services: <Services />, ssh: <SshManager />, environments: <QuickInstall />,
-    env: <EnvStudio />, snippets: <SnippetVault />, packages: <Search />, network: <Ports />,
-    devtools: <DevTools />, git: <Git />, config: <Config />, hermes: <Hermes />,
+  const renderPage = (id: string) => {
+    switch(id) {
+      case "dashboard": return <Dashboard />;
+      case "projects": return <Projects />;
+      case "scaffold": return <Scaffolder />;
+      case "docker": return <DockerManager />;
+      case "api": return <ApiTester />;
+      case "tunnel": return <Tunnel />;
+      case "database": return <DatabaseStudio />;
+      case "services": return <Services />;
+      case "ssh": return <SshManager />;
+      case "environments": return <QuickInstall />;
+      case "env": return <EnvStudio />;
+      case "snippets": return <SnippetVault />;
+      case "packages": return <Search />;
+      case "network": return <Ports />;
+      case "devtools": return <DevTools />;
+      case "git": return <Git />;
+      case "config": return <Config />;
+      case "hermes": return <Hermes />;
+      default: return null;
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────
@@ -338,7 +358,7 @@ function App() {
 
           <div className={`flex items-center ${collapsed ? "" : "gap-2"}`}>
             {!collapsed && (
-              <span className="text-[9px] font-mono opacity-25">v{localVersion || "0.8.4"}</span>
+              <span className="text-[9px] font-mono opacity-25">v{localVersion || "0.8.6"}</span>
             )}
             <button
               onClick={() => setCollapsed(!collapsed)}
@@ -353,10 +373,13 @@ function App() {
 
       {/* ── Main Content ── */}
       <main className="flex-1 overflow-hidden flex flex-col relative" style={{ background: "var(--color-base-100)" }}>
+        {/* Only render pages that have been visited — prevents all 18 pages mounting at startup */}
         {navItems.map((item) => (
-          <div key={item.id} className={`h-full overflow-y-auto ${active === item.id ? "block" : "hidden"}`}>
-            {pages[item.id]}
-          </div>
+          visited.has(item.id) ? (
+            <div key={item.id} className={`h-full overflow-y-auto ${active === item.id ? "flex flex-col" : "hidden"}`}>
+              {renderPage(item.id)}
+            </div>
+          ) : null
         ))}
         {/* Floating Notes Button */}
         <button

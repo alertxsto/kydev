@@ -1,6 +1,6 @@
 # 🌟 Detailed Features
 
-KyDev v0.5.1 includes a hardcore suite of developer tools designed to replace multiple third-party applications.
+KyDev v0.8.6 includes a hardcore suite of developer tools designed to replace multiple third-party applications.
 
 ## 1. Project Management
 - **Directory Scanner**: Recursively scans a selected directory for active Git repositories.
@@ -29,13 +29,14 @@ Stop launching massive database clients just to drop a table on localhost.
 
 ## 5. API Tester with History
 A built-in alternative to Postman or Insomnia.
-- **No CORS Issues**: Requests are made directly from the Rust backend using `curl`, bypassing all browser CORS restrictions.
+- **No CORS Issues**: Requests are made directly from the Rust backend (via **`reqwest`**), bypassing all browser CORS restrictions.
 - **History Sidebar**: Automatically saves your most recent successful payloads, endpoints, and headers so you can rapidly re-test APIs without retyping.
 - Supports `GET`, `POST`, `PUT`, `DELETE`, `PATCH`.
 - Configurable Headers and JSON Payload body.
 
 ## 6. Localhost Tunneling
 - Expose local ports (e.g., `localhost:3000`) to the public internet using `npx localtunnel`.
+- Tunnel output is written under **`~/.local/share/kydev/`** (per user) instead of a fixed global `/tmp` path.
 - The app automatically parses the output to provide you with a clickable, copiable public URL.
 - One-click to stop the tunnel and kill the background process.
 
