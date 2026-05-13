@@ -19,39 +19,81 @@ import CommandPalette from "./components/CommandPalette";
 import Services from "./pages/Services";
 import EnvStudio from "./pages/EnvStudio";
 import {
-  TbFolder, TbBolt, TbBox, TbNetwork, TbTools, TbSettings, TbTool, TbWand,
+  TbFolder, TbBolt, TbBox, TbNetwork, TbTools, TbSettings, TbWand,
   TbBrandDocker, TbApi, TbWorldWww, TbDatabase, TbGitBranch, TbLayoutDashboard,
-  TbArrowBarLeft, TbArrowBarRight, TbMessageChatbot, TbServer, TbLock
+  TbMessageChatbot, TbServer, TbLock, TbChevronLeft, TbChevronRight,
+  TbPalette,
 } from "react-icons/tb";
 
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: TbLayoutDashboard },
-  { id: "projects", label: "Projects", icon: TbFolder },
-  { id: "scaffold", label: "Bootstrapper", icon: TbWand },
-  { id: "docker", label: "Docker", icon: TbBrandDocker },
-  { id: "api", label: "API Tester", icon: TbApi },
-  { id: "tunnel", label: "Tunneling", icon: TbWorldWww },
-  { id: "database", label: "Databases", icon: TbDatabase },
-  { id: "services", label: "Services", icon: TbServer },
-  { id: "environments", label: "Environments", icon: TbBolt },
-  { id: "env", label: "Env Studio", icon: TbLock },
-  { id: "packages", label: "Packages", icon: TbBox },
-  { id: "network", label: "Network", icon: TbNetwork },
-  { id: "devtools", label: "DevTools", icon: TbTools },
-  { id: "git", label: "Git", icon: TbGitBranch },
-  { id: "config", label: "Config", icon: TbSettings },
-  { id: "hermes", label: "Hermes", icon: TbMessageChatbot },
+// ── Nav Groups ────────────────────────────────────────────────────────
+
+const navGroups = [
+  {
+    label: "Overview",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: TbLayoutDashboard },
+    ],
+  },
+  {
+    label: "Dev",
+    items: [
+      { id: "projects", label: "Projects", icon: TbFolder },
+      { id: "scaffold", label: "Bootstrapper", icon: TbWand },
+      { id: "git", label: "Git", icon: TbGitBranch },
+      { id: "api", label: "API Tester", icon: TbApi },
+      { id: "devtools", label: "DevTools", icon: TbTools },
+    ],
+  },
+  {
+    label: "Infrastructure",
+    items: [
+      { id: "docker", label: "Docker", icon: TbBrandDocker },
+      { id: "services", label: "Services", icon: TbServer },
+      { id: "database", label: "Databases", icon: TbDatabase },
+      { id: "tunnel", label: "Tunneling", icon: TbWorldWww },
+      { id: "network", label: "Network", icon: TbNetwork },
+    ],
+  },
+  {
+    label: "Environment",
+    items: [
+      { id: "env", label: "Env Studio", icon: TbLock },
+      { id: "environments", label: "Environments", icon: TbBolt },
+      { id: "packages", label: "Packages", icon: TbBox },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { id: "config", label: "Config", icon: TbSettings },
+      { id: "hermes", label: "Hermes", icon: TbMessageChatbot },
+    ],
+  },
 ];
 
-interface UpdateStatus {
-  log: string;
-  running: string;
-  success: string;
-}
+// Flat list for CommandPalette
+const navItems = navGroups.flatMap(g => g.items);
+
+// ── Theme Options ─────────────────────────────────────────────────────
+
+const themes = [
+  { id: "business", label: "Business" },
+  { id: "dim", label: "Dim" },
+  { id: "dracula", label: "Dracula" },
+  { id: "synthwave", label: "Synthwave" },
+  { id: "cyberpunk", label: "Cyberpunk" },
+  { id: "nord", label: "Nord" },
+  { id: "night", label: "Night" },
+  { id: "forest", label: "Forest" },
+];
+
+interface UpdateStatus { log: string; running: string; success: string; }
+
+// ── Main App ──────────────────────────────────────────────────────────
 
 function App() {
   const [active, setActive] = useState("dashboard");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState("business");
   const [localVersion, setLocalVersion] = useState("");
   const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
@@ -59,232 +101,259 @@ function App() {
   const [updateStatus, setUpdateStatus] = useState<"idle" | "running" | "success" | "error">("idle");
   const [updateLog, setUpdateLog] = useState("");
   const [updatePid, setUpdatePid] = useState<string | null>(null);
+  const [showThemePicker, setShowThemePicker] = useState(false);
+
+  // ── Persistence ───────────────────────────────────────────────────
 
   useEffect(() => {
     invoke<string>("load_state_file").then((raw) => {
       if (!raw) return;
       try {
-        const state = JSON.parse(raw);
-        if (state.activeTab) setActive(state.activeTab);
-        if (typeof state.sidebarCollapsed === "boolean") setSidebarCollapsed(state.sidebarCollapsed);
-        if (state.theme) setTheme(state.theme);
+        const s = JSON.parse(raw);
+        if (s.activeTab) setActive(s.activeTab);
+        if (typeof s.sidebarCollapsed === "boolean") setCollapsed(s.sidebarCollapsed);
+        if (s.theme) setTheme(s.theme);
       } catch {}
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    const state = JSON.stringify({ activeTab: active, sidebarCollapsed, theme });
+    const state = JSON.stringify({ activeTab: active, sidebarCollapsed: collapsed, theme });
     invoke("save_state_file", { state }).catch(() => {});
-    const interval = setInterval(() => {
-      invoke("save_state_file", { state }).catch(() => {});
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [active, sidebarCollapsed, theme]);
+    const t = setInterval(() => invoke("save_state_file", { state }).catch(() => {}), 30000);
+    return () => clearInterval(t);
+  }, [active, collapsed, theme]);
+
+  // ── Update Logic ──────────────────────────────────────────────────
 
   useEffect(() => {
-    const checkUpdate = async () => {
+    (async () => {
       try {
         const ver = await getVersion();
         setLocalVersion(ver);
         const res = await fetch("https://raw.githubusercontent.com/alertxsto/kydev/main/package.json");
         const data = await res.json();
         if (data.version && data.version !== ver) {
-          const remoteParts = data.version.split('.').map(Number);
-          const localParts = ver.split('.').map(Number);
-          let isNewer = false;
+          const r = data.version.split(".").map(Number);
+          const l = ver.split(".").map(Number);
+          let newer = false;
           for (let i = 0; i < 3; i++) {
-            if (remoteParts[i] > localParts[i]) { isNewer = true; break; }
-            if (remoteParts[i] < localParts[i]) { break; }
+            if (r[i] > l[i]) { newer = true; break; }
+            if (r[i] < l[i]) break;
           }
-          if (isNewer) setRemoteVersion(data.version);
+          if (newer) setRemoteVersion(data.version);
         }
-      } catch (e) { console.error("Update check failed:", e); }
-    };
-    checkUpdate();
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {
     if (!updatePid || updateStatus !== "running") return;
-    const interval = setInterval(async () => {
-      const status = await invoke<UpdateStatus>("check_update_status", { pid: updatePid });
-      if (status.log) setUpdateLog(status.log);
-      if (status.running !== "running") {
-        clearInterval(interval);
-        setUpdateStatus(status.success === "true" ? "success" : "error");
-        if (status.success === "true") {
-          setRemoteVersion(null);
-          setLocalVersion(await getVersion());
-        }
+    const t = setInterval(async () => {
+      const s = await invoke<UpdateStatus>("check_update_status", { pid: updatePid });
+      if (s.log) setUpdateLog(s.log);
+      if (s.running !== "running") {
+        clearInterval(t);
+        setUpdateStatus(s.success === "true" ? "success" : "error");
+        if (s.success === "true") { setRemoteVersion(null); setLocalVersion(await getVersion()); }
       }
     }, 1500);
-    return () => clearInterval(interval);
+    return () => clearInterval(t);
   }, [updatePid, updateStatus]);
 
   const handleUpdate = async () => {
-    setUpdating(true);
-    setUpdateStatus("running");
-    setUpdateLog("Starting update...");
-    try {
-      const pid = await invoke<string>("run_kydev_update");
-      setUpdatePid(pid);
-    } catch (e) {
-      setUpdateStatus("error");
-      setUpdateLog(`Failed: ${e}`);
-    }
+    setUpdating(true); setUpdateStatus("running"); setUpdateLog("Starting update...");
+    try { setUpdatePid(await invoke<string>("run_kydev_update")); }
+    catch (e) { setUpdateStatus("error"); setUpdateLog(`Failed: ${e}`); }
   };
+
+  // ── Pages ─────────────────────────────────────────────────────────
 
   const pages: Record<string, React.ReactNode> = {
-    dashboard: <Dashboard />,
-    projects: <Projects />,
-    scaffold: <Scaffolder />,
-    docker: <DockerManager />,
-    api: <ApiTester />,
-    tunnel: <Tunnel />,
-    database: <DatabaseStudio />,
-    services: <Services />,
-    environments: <QuickInstall />,
-    env: <EnvStudio />,
-    packages: <Search />,
-    network: <Ports />,
-    devtools: <DevTools />,
-    git: <Git />,
-    config: <Config />,
-    hermes: <Hermes />,
+    dashboard: <Dashboard />, projects: <Projects />, scaffold: <Scaffolder />,
+    docker: <DockerManager />, api: <ApiTester />, tunnel: <Tunnel />,
+    database: <DatabaseStudio />, services: <Services />, environments: <QuickInstall />,
+    env: <EnvStudio />, packages: <Search />, network: <Ports />,
+    devtools: <DevTools />, git: <Git />, config: <Config />, hermes: <Hermes />,
   };
 
+  // ── Render ────────────────────────────────────────────────────────
+
   return (
-    <div className="h-full flex text-base-content bg-base-100 font-sans selection:bg-primary selection:text-primary-content" data-theme={theme}>
-      <aside className={`${sidebarCollapsed ? "w-16" : "w-48"} bg-base-200/60 backdrop-blur-2xl flex flex-col shrink-0 border-r border-base-content/10 transition-all duration-300 ease-in-out`}>
-        {/* Logo */}
-        <div className={`${sidebarCollapsed ? "px-0 py-4" : "px-4 py-4"} border-b border-base-content/10 bg-base-200/40 backdrop-blur-md`}>
-          <div className={`flex ${sidebarCollapsed ? "justify-center" : "items-center gap-2"}`}>
-            <TbTool className="text-xl text-primary shrink-0" />
-            {!sidebarCollapsed && (
-              <div>
-                <h1 className="font-bold text-sm tracking-wide">KyDev</h1>
-                <p className="text-[9px] uppercase tracking-wider text-neutral-content/60">Linux Toolbox</p>
+    <div
+      className="h-full flex font-sans selection:bg-primary selection:text-primary-content text-base-content"
+      data-theme={theme}
+      style={{ background: "var(--color-base-100)" }}
+    >
+      {/* ── Sidebar ── */}
+      <aside
+        className={`${collapsed ? "w-[60px]" : "w-[200px]"} shrink-0 flex flex-col transition-all duration-300 ease-in-out relative`}
+        style={{
+          background: "linear-gradient(180deg, var(--color-base-300) 0%, var(--color-base-200) 100%)",
+          borderRight: "1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent)",
+        }}
+      >
+        {/* ── Logo ── */}
+        <div className={`flex items-center gap-3 px-4 py-5 border-b shrink-0`} style={{ borderColor: "color-mix(in srgb, var(--color-base-content) 8%, transparent)" }}>
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-white font-black text-sm shadow-lg"
+            style={{ background: "linear-gradient(135deg, var(--color-primary) 0%, color-mix(in srgb, var(--color-primary) 60%, var(--color-secondary)) 100%)" }}
+          >
+            K
+          </div>
+          {!collapsed && (
+            <div className="overflow-hidden">
+              <p className="font-bold text-sm leading-none tracking-wide">KyDev</p>
+              <p className="text-[10px] opacity-40 mt-0.5 uppercase tracking-widest leading-none">Toolbox</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Nav ── */}
+        <nav className="flex-1 overflow-y-auto py-3 space-y-4 px-2">
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              {!collapsed && (
+                <p className="text-[9px] font-bold uppercase tracking-[0.12em] opacity-30 px-2 mb-1.5">{group.label}</p>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = active === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActive(item.id)}
+                      title={collapsed ? item.label : undefined}
+                      className={`w-full flex items-center gap-2.5 rounded-xl transition-all duration-150 group relative
+                        ${collapsed ? "justify-center p-2.5" : "px-2.5 py-2"}
+                        ${isActive
+                          ? "text-primary-content"
+                          : "text-base-content/50 hover:text-base-content hover:bg-base-content/5"
+                        }`}
+                      style={isActive ? {
+                        background: "linear-gradient(135deg, var(--color-primary) 0%, color-mix(in srgb, var(--color-primary) 70%, var(--color-secondary)) 100%)",
+                        boxShadow: "0 4px 12px color-mix(in srgb, var(--color-primary) 35%, transparent)",
+                      } : {}}
+                    >
+                      <Icon
+                        size={16}
+                        className={`shrink-0 transition-all duration-150 ${isActive ? "opacity-100" : "opacity-60 group-hover:opacity-80"}`}
+                      />
+                      {!collapsed && (
+                        <span className="text-[13px] font-medium truncate leading-none">{item.label}</span>
+                      )}
+                      {collapsed && isActive && (
+                        <span
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
+                          style={{ background: "var(--color-primary)" }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* ── Update Banner ── */}
+        {!collapsed && updateStatus === "idle" && remoteVersion && (
+          <div className="mx-2 mb-2 rounded-xl p-3 border" style={{ borderColor: "color-mix(in srgb, var(--color-primary) 30%, transparent)", background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "var(--color-primary)" }} />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: "var(--color-primary)" }} />
+              </span>
+              <p className="text-[10px] font-bold" style={{ color: "var(--color-primary)" }}>v{remoteVersion} available</p>
+            </div>
+            <button className="btn btn-xs btn-primary w-full" onClick={handleUpdate} disabled={updating}>
+              {updating ? "Starting..." : "Update Now"}
+            </button>
+          </div>
+        )}
+        {!collapsed && updateStatus === "running" && (
+          <div className="mx-2 mb-2 rounded-xl p-3 border border-warning/20 bg-warning/5">
+            <p className="text-[10px] font-bold text-warning mb-2 flex items-center gap-1.5"><span className="loading loading-spinner loading-xs" /> Updating...</p>
+            <div className="rounded-lg p-2 bg-base-300 text-[8px] font-mono text-warning/80 max-h-24 overflow-y-auto whitespace-pre-wrap">{updateLog.split("\n").slice(-10).join("\n")}</div>
+          </div>
+        )}
+        {!collapsed && updateStatus === "success" && (
+          <div className="mx-2 mb-2 rounded-xl p-3 border border-success/20 bg-success/5">
+            <p className="text-[10px] font-bold text-success mb-2">✓ Update complete!</p>
+            <button className="btn btn-xs btn-success w-full" onClick={() => window.location.reload()}>Relaunch</button>
+          </div>
+        )}
+        {!collapsed && updateStatus === "error" && (
+          <div className="mx-2 mb-2 rounded-xl p-3 border border-error/20 bg-error/5">
+            <p className="text-[10px] font-bold text-error mb-2">✗ Update failed</p>
+            <button className="btn btn-xs btn-outline w-full" onClick={() => setUpdateStatus("idle")}>Try Again</button>
+          </div>
+        )}
+
+        {/* ── Footer ── */}
+        <div
+          className={`shrink-0 px-2 py-3 flex items-center gap-2 border-t ${collapsed ? "justify-center flex-col" : "justify-between"}`}
+          style={{ borderColor: "color-mix(in srgb, var(--color-base-content) 8%, transparent)" }}
+        >
+          {/* Theme picker */}
+          <div className="relative">
+            <button
+              className="btn btn-ghost btn-xs gap-1.5 text-base-content/40 hover:text-base-content rounded-lg"
+              onClick={() => setShowThemePicker(p => !p)}
+              title="Change theme"
+            >
+              <TbPalette size={14} />
+              {!collapsed && <span className="text-[10px] font-mono">{theme}</span>}
+            </button>
+            {showThemePicker && (
+              <div
+                className="absolute bottom-full left-0 mb-2 rounded-xl overflow-hidden shadow-2xl z-50 border min-w-[130px]"
+                style={{ background: "var(--color-base-300)", borderColor: "color-mix(in srgb, var(--color-base-content) 12%, transparent)" }}
+              >
+                {themes.map((t) => (
+                  <button
+                    key={t.id}
+                    className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2
+                      ${theme === t.id ? "font-bold text-primary" : "text-base-content/60 hover:text-base-content hover:bg-base-content/5"}`}
+                    onClick={() => { setTheme(t.id); setShowThemePicker(false); }}
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      data-theme={t.id}
+                      style={{ background: "var(--color-primary)" }}
+                    />
+                    {t.label}
+                  </button>
+                ))}
               </div>
             )}
           </div>
-        </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-2 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActive(item.id)}
-                className={`w-full flex items-center ${sidebarCollapsed ? "justify-center px-0" : "gap-3 px-4"} py-2 text-sm text-left transition-colors ${
-                  active === item.id 
-                    ? "bg-primary/10 text-primary border-l-2 border-primary font-medium" 
-                    : "text-base-content/70 hover:bg-base-200 hover:text-base-content border-l-2 border-transparent"
-                }`}
-                title={sidebarCollapsed ? item.label : undefined}
-              >
-                <Icon className="text-lg opacity-80 shrink-0" />
-                {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Update Notification - only when expanded */}
-        {!sidebarCollapsed && updateStatus === "idle" && remoteVersion && (
-          <div className="px-4 py-3 border-t border-primary/20 bg-primary/10 shrink-0">
-            <p className="text-[10px] font-bold text-primary mb-2 flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-              </span>
-              Update v{remoteVersion} Available
-            </p>
-            <button className="btn btn-xs btn-primary w-full shadow-lg shadow-primary/20" onClick={handleUpdate} disabled={updating}>
-              {updating ? "Update Starting..." : "Update Now"}
+          <div className={`flex items-center ${collapsed ? "" : "gap-2"}`}>
+            {!collapsed && (
+              <span className="text-[9px] font-mono opacity-25">v{localVersion || "0.8.4"}</span>
+            )}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="btn btn-ghost btn-xs text-base-content/30 hover:text-base-content rounded-lg"
+              title={collapsed ? "Expand" : "Collapse"}
+            >
+              {collapsed ? <TbChevronRight size={14} /> : <TbChevronLeft size={14} />}
             </button>
           </div>
-        )}
-        {!sidebarCollapsed && updateStatus === "running" && (
-          <div className="px-4 py-3 border-t border-primary/20 bg-primary/10 shrink-0">
-            <p className="text-[10px] font-bold text-primary mb-2 flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-spin absolute inline-flex h-full w-full rounded-full bg-primary" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-              </span>
-              Updating KyDev...
-            </p>
-            <div className="bg-base-200 rounded p-2 text-[8px] font-mono text-primary overflow-x-auto max-h-32 overflow-y-auto">
-              {updateLog.split('\n').slice(-20).join('\n')}
-            </div>
-          </div>
-        )}
-        {!sidebarCollapsed && updateStatus === "success" && (
-          <div className="px-4 py-3 border-t border-green-500/20 bg-green-500/10 shrink-0">
-            <p className="text-[10px] font-bold text-green-500 mb-2 flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-              </span>
-              Update Complete!
-            </p>
-            <div className="bg-base-200 rounded p-2 mb-2 text-[8px] font-mono text-green-400 overflow-x-auto max-h-32 overflow-y-auto">
-              {updateLog.split('\n').slice(-20).join('\n')}
-            </div>
-            <button className="btn btn-xs btn-success w-full shadow-lg shadow-green-500/20" onClick={() => window.location.reload()}>
-              Relaunch KyDev
-            </button>
-          </div>
-        )}
-        {!sidebarCollapsed && updateStatus === "error" && (
-          <div className="px-4 py-3 border-t border-red-500/20 bg-red-500/10 shrink-0">
-            <p className="text-[10px] font-bold text-red-500 mb-2 flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-              </span>
-              Update Failed
-            </p>
-            <div className="bg-base-200 rounded p-2 mb-2 text-[8px] font-mono text-red-400 overflow-x-auto max-h-32 overflow-y-auto">
-              {updateLog || "No output captured."}
-            </div>
-            <button className="btn btn-xs btn-outline w-full" onClick={() => setUpdateStatus("idle")}>
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className={`${sidebarCollapsed ? "px-0 py-3 flex-col gap-2" : "px-4 py-2"} border-t border-base-content/10 bg-base-200/40 backdrop-blur-md shrink-0 flex items-center justify-between`}>
-          {!sidebarCollapsed && (
-            <div className="flex flex-col gap-1">
-              <select className="select select-bordered select-xs w-24 bg-base-100/50 backdrop-blur" value={theme} onChange={(e) => setTheme(e.target.value)}>
-                <option value="business">Business</option>
-                <option value="synthwave">Synthwave</option>
-                <option value="cyberpunk">Cyberpunk</option>
-                <option value="dracula">Dracula</option>
-                <option value="dim">Dim</option>
-                <option value="nord">Nord</option>
-              </select>
-              <p className="text-[9px] text-base-content/40 font-mono text-center">v{localVersion || "0.8.3"}</p>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="btn btn-ghost btn-xs text-base-content/40 hover:text-base-content"
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {sidebarCollapsed ? <TbArrowBarRight size={16} /> : <TbArrowBarLeft size={16} />}
-          </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto bg-base-100 p-0 flex flex-col">
+      {/* ── Main Content ── */}
+      <main className="flex-1 overflow-hidden flex flex-col" style={{ background: "var(--color-base-100)" }}>
         {navItems.map((item) => (
-          <div key={item.id} className={`h-full ${active === item.id ? "block" : "hidden"}`}>
+          <div key={item.id} className={`h-full overflow-y-auto ${active === item.id ? "block" : "hidden"}`}>
             {pages[item.id]}
           </div>
         ))}
       </main>
+
       <CommandPalette items={navItems} onSelect={setActive} />
     </div>
   );
