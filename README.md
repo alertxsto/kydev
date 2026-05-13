@@ -60,6 +60,5 @@ For complete documentation on how the app is structured and how to use every fea
 
 KyDev embraces standard Linux security paradigms. Privileged operations (like installing system packages or restarting system services) securely prompt for your password using **`pkexec`** (PolicyKit), ensuring no hardcoded passwords are ever used.
 
-
 ---
 *Built for the ultimate Linux Developer experience.*
