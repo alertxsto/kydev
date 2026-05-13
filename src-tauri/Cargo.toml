@@ -1,6 +1,6 @@
 [package]
 name = "kydev"
-version = "0.8.2"
+version = "0.8.3"
 description = "Fedora Developer Toolbox"
 authors = ["alertxsto"]
 edition = "2021"
@@ -20,3 +20,4 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sysinfo = "0.33"
 chrono = "0.4"
+tokio = { version = "1", features = ["process", "rt", "macros"] }

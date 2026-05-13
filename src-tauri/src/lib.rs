@@ -61,6 +61,26 @@ fn run_cmd_lines(cmd: &str, args: &[&str]) -> Vec<String> {
     run_cmd(cmd, args).lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect()
 }
 
+async fn run_async_cmd(cmd: &str, args: &[&str]) -> Result<String, String> {
+    match tokio::process::Command::new(cmd).args(args).output().await {
+        Ok(o) => {
+            let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
+            if o.status.success() {
+                Ok(if stdout.is_empty() { stderr } else { stdout })
+            } else {
+                Err(if stderr.is_empty() { stdout } else { stderr })
+            }
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+async fn run_async_cmd_lines(cmd: &str, args: &[&str]) -> Result<Vec<String>, String> {
+    let out = run_async_cmd(cmd, args).await?;
+    Ok(out.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect())
+}
+
 fn fmt_bytes(bytes: u64) -> String { format!("{:.1} GB", bytes as f64 / 1_073_741_824.0) }
 
 fn fmt_seconds(secs: u64) -> String {
@@ -98,7 +118,7 @@ fn get_system_info() -> SystemInfo {
 
 #[tauri::command]
 async fn check_updates() -> UpdateInfo {
-    let output = run_cmd("sh", &["-c", "dnf check-update -q 2>/dev/null | grep -v '^$' | grep -v 'Security' | wc -l"]);
+    let output = run_async_cmd("sh", &["-c", "dnf check-update -q 2>/dev/null | grep -v '^$' | grep -v 'Security' | wc -l"]).await.unwrap_or_default();
     let count = output.trim().parse::<u32>().unwrap_or(0);
     UpdateInfo { count, has_updates: count > 0 }
 }
@@ -106,37 +126,43 @@ async fn check_updates() -> UpdateInfo {
 #[tauri::command]
 async fn preview_updates() -> Vec<UpdatePreview> {
     let mut previews = Vec::new();
-    let lines = run_cmd_lines("sh", &["-c", "dnf check-update -q 2>/dev/null | grep -v '^$' | grep -v 'Security'"]);
-    for line in lines {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 3 {
-            previews.push(UpdatePreview { name: parts[0].to_string(), old_version: "current".into(), new_version: parts[1].to_string(), repo: parts[2].to_string() });
+    if let Ok(lines) = run_async_cmd_lines("sh", &["-c", "dnf check-update -q 2>/dev/null | grep -v '^$' | grep -v 'Security'"]).await {
+        for line in lines {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3 {
+                previews.push(UpdatePreview { name: parts[0].to_string(), old_version: "current".into(), new_version: parts[1].to_string(), repo: parts[2].to_string() });
+            }
         }
     }
     previews
 }
 
 #[tauri::command]
-async fn run_update() -> String { run_cmd("sh", &["-c", "pkexec dnf upgrade -y 2>&1 | tail -50"]) }
+async fn run_update() -> Result<String, String> { 
+    run_async_cmd("pkexec", &["dnf", "upgrade", "-y"]).await
+}
 
 #[tauri::command]
-async fn run_cleanup() -> String {
-    format!("{}\n---\n{}", run_cmd("sh", &["-c", "pkexec dnf autoremove -y 2>&1 | tail -20"]), run_cmd("sh", &["-c", "pkexec dnf clean all 2>&1"]))
+async fn run_cleanup() -> Result<String, String> {
+    let auto = run_async_cmd("pkexec", &["dnf", "autoremove", "-y"]).await.unwrap_or_default();
+    let clean = run_async_cmd("pkexec", &["dnf", "clean", "all"]).await.unwrap_or_default();
+    Ok(format!("{}\n---\n{}", auto, clean))
 }
 
 #[tauri::command]
 async fn get_dnf_history() -> Vec<HistoryEntry> {
     let mut history = Vec::new();
-    let lines = run_cmd_lines("sh", &["-c", "dnf history list 2>/dev/null | tail -n +4 | head -n 30"]);
-    for line in lines {
-        let parts: Vec<&str> = line.split('|').collect();
-        if parts.len() >= 4 {
-            history.push(HistoryEntry {
-                id: parts[0].trim().to_string(),
-                command: parts[1].trim().to_string(),
-                date: parts[2].trim().to_string(),
-                action: parts[3].trim().to_string(),
-            });
+    if let Ok(lines) = run_async_cmd_lines("sh", &["-c", "dnf history list 2>/dev/null | tail -n +4 | head -n 30"]).await {
+        for line in lines {
+            let parts: Vec<&str> = line.split('|').collect();
+            if parts.len() >= 4 {
+                history.push(HistoryEntry {
+                    id: parts[0].trim().to_string(),
+                    command: parts[1].trim().to_string(),
+                    date: parts[2].trim().to_string(),
+                    action: parts[3].trim().to_string(),
+                });
+            }
         }
     }
     history
@@ -187,11 +213,21 @@ async fn scan_projects(dir: String) -> Vec<Project> {
 }
 
 #[tauri::command]
-async fn run_project_script(path: String, script: String, lang: String) -> String {
-    let cmd = match lang.as_str() {
-        "JavaScript" => format!("cd {} && npm run {} 2>&1", path, script), "Rust" => format!("cd {} && cargo {} 2>&1", path, script), "Go" => format!("cd {} && go {} 2>&1", path, script), _ => format!("cd {} && {} 2>&1", path, script),
+async fn run_project_script(path: String, script: String, lang: String) -> Result<String, String> {
+    let (prog, args) = match lang.as_str() {
+        "JavaScript" => ("npm", vec!["run", &script]),
+        "Rust" => ("cargo", vec![&script[..]]),
+        "Go" => ("go", vec![&script[..]]),
+        _ => return Err("Unknown language".into()),
     };
-    run_cmd("sh", &["-c", &cmd])
+    match tokio::process::Command::new(prog).current_dir(path).args(args).output().await {
+        Ok(o) => {
+            let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            if o.status.success() { Ok(if stdout.is_empty() { stderr } else { stdout }) } else { Err(stderr) }
+        }
+        Err(e) => Err(e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -218,7 +254,12 @@ async fn scaffold_project(name: String, path: String, template: String, addons: 
 }
 
 #[tauri::command]
-async fn open_in_editor(path: String, editor: String) -> String { run_cmd("sh", &["-c", &format!("{} {} &", editor, path)]) }
+async fn open_in_editor(path: String, editor: String) -> Result<String, String> { 
+    match tokio::process::Command::new(&editor).arg(&path).spawn() {
+        Ok(_) => Ok("Opened".into()),
+        Err(e) => Err(e.to_string())
+    }
+}
 
 // ── Git GUI Commands ──────────────────────────────────────────────────
 
@@ -382,13 +423,14 @@ async fn kill_process(pid: u32) -> String { run_cmd("kill", &["-9", &pid.to_stri
 #[tauri::command]
 async fn search_packages(query: String) -> Vec<PackageInfo> {
     let mut packages = Vec::new();
-    let lines = run_cmd_lines("dnf", &["search", "-q", "--cacheonly", &query]);
-    for line in &lines {
-        if let Some((name, summary)) = line.split_once(" : ") {
-            packages.push(PackageInfo {
-                name: name.trim().split('.').next().unwrap_or(name.trim()).to_string(),
-                summary: summary.trim().to_string(), version: "".into(), repo: "".into(), arch: "".into(), size: "".into(), installed: false,
-            });
+    if let Ok(lines) = run_async_cmd_lines("dnf", &["search", "-q", "--cacheonly", &query]).await {
+        for line in &lines {
+            if let Some((name, summary)) = line.split_once(" : ") {
+                packages.push(PackageInfo {
+                    name: name.trim().split('.').next().unwrap_or(name.trim()).to_string(),
+                    summary: summary.trim().to_string(), version: "".into(), repo: "".into(), arch: "".into(), size: "".into(), installed: false,
+                });
+            }
         }
     }
     packages.truncate(30); packages
@@ -396,51 +438,64 @@ async fn search_packages(query: String) -> Vec<PackageInfo> {
 
 #[tauri::command]
 async fn get_package_details(name: String) -> PackageInfo {
-    let info_lines = run_cmd_lines("dnf", &["info", "-q", &name]);
     let mut pkg = PackageInfo { name: name.clone(), summary: "".into(), version: "".into(), repo: "".into(), arch: "".into(), size: "".into(), installed: false };
-    for line in info_lines {
-        if line.starts_with("Installed Packages") { pkg.installed = true; }
-        let parts: Vec<&str> = line.split(':').collect();
-        if parts.len() == 2 {
-            let k = parts[0].trim(); let v = parts[1].trim();
-            match k { "Version" => pkg.version = v.into(), "Architecture" => pkg.arch = v.into(), "Size" => pkg.size = v.into(), "Repository" | "From repo" => pkg.repo = v.into(), "Summary" => pkg.summary = v.into(), _ => {} }
+    if let Ok(info_lines) = run_async_cmd_lines("dnf", &["info", "-q", &name]).await {
+        for line in info_lines {
+            if line.starts_with("Installed Packages") { pkg.installed = true; }
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() == 2 {
+                let k = parts[0].trim(); let v = parts[1].trim();
+                match k { "Version" => pkg.version = v.into(), "Architecture" => pkg.arch = v.into(), "Size" => pkg.size = v.into(), "Repository" | "From repo" => pkg.repo = v.into(), "Summary" => pkg.summary = v.into(), _ => {} }
+            }
         }
     }
     pkg
 }
 
 #[tauri::command]
-async fn install_package(name: String) -> String { run_cmd("sh", &["-c", &format!("pkexec dnf install -y {} 2>&1 | tail -20", name)]) }
+async fn install_package(name: String) -> Result<String, String> { 
+    run_async_cmd("pkexec", &["dnf", "install", "-y", &name]).await
+}
 
 #[tauri::command]
-async fn remove_package(name: String) -> String { run_cmd("sh", &["-c", &format!("pkexec dnf remove -y {} 2>&1 | tail -20", name)]) }
+async fn remove_package(name: String) -> Result<String, String> { 
+    run_async_cmd("pkexec", &["dnf", "remove", "-y", &name]).await
+}
 
 // ── Docker Commands ───────────────────────────────────────────────────
 
 #[tauri::command]
 async fn get_containers() -> Vec<ContainerInfo> {
     let mut containers = Vec::new();
-    let lines = run_cmd_lines("sh", &["-c", "docker ps -a --format '{{.ID}}|{{.Image}}|{{.Status}}|{{.Ports}}|{{.Names}}' 2>/dev/null"]);
-    for line in lines {
-        let parts: Vec<&str> = line.split('|').collect();
-        if parts.len() >= 5 {
-            containers.push(ContainerInfo {
-                id: parts[0].to_string(), image: parts[1].to_string(), status: parts[2].to_string(), ports: parts[3].to_string(), name: parts[4].to_string(),
-            });
+    if let Ok(lines) = run_async_cmd_lines("sh", &["-c", "docker ps -a --format '{{.ID}}|{{.Image}}|{{.Status}}|{{.Ports}}|{{.Names}}' 2>/dev/null"]).await {
+        for line in lines {
+            let parts: Vec<&str> = line.split('|').collect();
+            if parts.len() >= 5 {
+                containers.push(ContainerInfo {
+                    id: parts[0].to_string(), image: parts[1].to_string(), status: parts[2].to_string(), ports: parts[3].to_string(), name: parts[4].to_string(),
+                });
+            }
         }
     }
     containers
 }
 
 #[tauri::command]
-async fn run_docker_compose(path: String, action: String) -> String {
-    let cmd = format!("cd {} && docker compose {} 2>&1 || docker-compose {} 2>&1", path, action, action);
-    run_cmd("sh", &["-c", &cmd])
+async fn run_docker_compose(path: String, action: String) -> Result<String, String> {
+    let res = tokio::process::Command::new("docker")
+        .current_dir(&path).arg("compose").arg(&action).output().await;
+    match res {
+        Ok(o) => {
+            if o.status.success() { Ok(String::from_utf8_lossy(&o.stdout).to_string()) }
+            else { Err(String::from_utf8_lossy(&o.stderr).to_string()) }
+        }
+        Err(e) => Err(e.to_string())
+    }
 }
 
 #[tauri::command]
-async fn run_docker_action(id: String, action: String) -> String {
-    run_cmd("sh", &["-c", &format!("docker {} {} 2>&1", action, id)])
+async fn run_docker_action(id: String, action: String) -> Result<String, String> {
+    run_async_cmd("docker", &[&action, &id]).await
 }
 
 #[tauri::command]
