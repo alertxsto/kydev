@@ -1,6 +1,6 @@
 # 🌟 Detailed Features
 
-KyDev v0.8.6 includes a hardcore suite of developer tools designed to replace multiple third-party applications.
+KyDev v0.8.7 includes a hardcore suite of developer tools designed to replace multiple third-party applications.
 
 ## 1. Project Management
 - **Directory Scanner**: Recursively scans a selected directory for active Git repositories.

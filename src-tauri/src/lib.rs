@@ -26,7 +26,17 @@ pub struct ContainerInfo { pub id: String, pub image: String, pub status: String
 pub struct HistoryEntry { pub id: String, pub command: String, pub date: String, pub action: String }
 
 #[derive(Serialize)]
-pub struct Project { pub name: String, pub path: String, pub lang: String, pub framework: String, pub git_branch: String, pub git_dirty: bool, pub scripts: Vec<String> }
+pub struct Project {
+    pub name: String,
+    pub path: String,
+    pub lang: String,
+    pub framework: String,
+    pub git_branch: String,
+    pub git_dirty: bool,
+    /// Lines from `git status --porcelain` (0 if clean or not a git repo).
+    pub git_changed_files: u32,
+    pub scripts: Vec<String>,
+}
 
 #[derive(Serialize)]
 pub struct PortEntry { pub port: u16, pub process: String, pub pid: u32 }
@@ -233,8 +243,23 @@ async fn scan_projects(dir: String) -> Vec<Project> {
             if !lang.is_empty() {
                 let git_branch = run_cmd("git", &["-C", &path_str, "branch", "--show-current"]);
                 let git_status = run_cmd("git", &["-C", &path_str, "status", "--porcelain"]);
-                let git_dirty = !git_status.trim().is_empty() && git_status != "fatal: not a git repository (or any of the parent directories): .git";
-                projects.push(Project { name, path: path_str, lang, framework, git_branch, git_dirty, scripts });
+                let is_git = !git_status.contains("fatal: not a git repository");
+                let git_dirty = is_git && !git_status.trim().is_empty();
+                let git_changed_files = if git_dirty {
+                    git_status.lines().filter(|l| !l.trim().is_empty()).count() as u32
+                } else {
+                    0
+                };
+                projects.push(Project {
+                    name,
+                    path: path_str,
+                    lang,
+                    framework,
+                    git_branch,
+                    git_dirty,
+                    git_changed_files,
+                    scripts,
+                });
             }
         }
     }
@@ -288,6 +313,88 @@ async fn open_in_editor(path: String, editor: String) -> Result<String, String> 
     match tokio::process::Command::new(&editor).arg(&path).spawn() {
         Ok(_) => Ok("Opened".into()),
         Err(e) => Err(e.to_string())
+    }
+}
+
+#[tauri::command]
+fn expand_user_path(path: String) -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    if path == "~" {
+        return home;
+    }
+    if let Some(rest) = path.strip_prefix("~/") {
+        let h = home.trim_end_matches('/');
+        return format!("{}/{}", h, rest);
+    }
+    path
+}
+
+#[tauri::command]
+async fn open_path_in_file_manager(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.is_dir() {
+        return Err("Path is not a directory".into());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        tokio::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        tokio::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        tokio::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+        let _ = path;
+        return Err("Unsupported platform".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn read_project_readme(repo_path: String) -> String {
+    let base = std::path::PathBuf::from(&repo_path);
+    if !base.is_dir() {
+        return String::new();
+    }
+    let readme = base.join("README.md");
+    if !readme.is_file() {
+        return String::new();
+    }
+    let Ok(canonical_base) = base.canonicalize() else {
+        return String::new();
+    };
+    let Ok(canonical_readme) = readme.canonicalize() else {
+        return String::new();
+    };
+    if !canonical_readme.starts_with(&canonical_base) {
+        return String::new();
+    }
+    match std::fs::read_to_string(&canonical_readme) {
+        Ok(s) => {
+            const MAX_CHARS: usize = 12_000;
+            let n = s.chars().count();
+            if n > MAX_CHARS {
+                let head: String = s.chars().take(MAX_CHARS).collect();
+                format!("{head}…\n\n_(truncated)_")
+            } else {
+                s
+            }
+        }
+        Err(_) => String::new(),
     }
 }
 
@@ -1221,7 +1328,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
          .invoke_handler(tauri::generate_handler![
               get_system_info, check_updates, preview_updates, run_update, run_cleanup, get_dnf_history,
-              scan_projects, run_project_script, open_in_editor, scaffold_project, run_kydev_update, check_update_status,
+              scan_projects, run_project_script, open_in_editor, expand_user_path, open_path_in_file_manager, read_project_readme, scaffold_project, run_kydev_update, check_update_status,
               git_current_branch, git_status, git_diff, git_stage, git_unstage, git_commit, git_push, git_pull, git_log, git_branches, git_checkout,
               save_state_file, load_state_file,
               list_ports, kill_process,

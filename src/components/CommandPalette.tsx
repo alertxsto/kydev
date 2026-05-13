@@ -4,6 +4,8 @@ import { TbSearch, TbArrowRight } from "react-icons/tb";
 interface CommandItem {
   id: string;
   label: string;
+  /** Optional short name — also used for palette search */
+  shortLabel?: string;
   icon: any;
 }
 
@@ -40,9 +42,11 @@ export default function CommandPalette({ items, onSelect }: CommandPaletteProps)
     }
   }, [open]);
 
+  const q = query.toLowerCase();
   const filteredItems = items.filter((item) =>
-    item.label.toLowerCase().includes(query.toLowerCase()) ||
-    item.id.toLowerCase().includes(query.toLowerCase())
+    item.label.toLowerCase().includes(q) ||
+    item.id.toLowerCase().includes(q) ||
+    (item.shortLabel && item.shortLabel.toLowerCase().includes(q))
   );
 
   useEffect(() => {
