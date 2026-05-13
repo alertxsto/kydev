@@ -10,6 +10,7 @@ Forget keeping 10 different terminal windows open for logs, database queries, an
 
 ## ⚡ Quick Install (Copy & Paste)
 
+
 For Fedora/RHEL users, you can install and build KyDev instantly by pasting this into your terminal:
 
 ```bash
