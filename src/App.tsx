@@ -15,10 +15,13 @@ import DatabaseStudio from "./pages/Database";
 import Git from "./pages/Git";
 import Dashboard from "./pages/Dashboard";
 import Hermes from "./pages/Hermes";
+import CommandPalette from "./components/CommandPalette";
+import Services from "./pages/Services";
+import EnvStudio from "./pages/EnvStudio";
 import {
   TbFolder, TbBolt, TbBox, TbNetwork, TbTools, TbSettings, TbTool, TbWand,
   TbBrandDocker, TbApi, TbWorldWww, TbDatabase, TbGitBranch, TbLayoutDashboard,
-  TbArrowBarLeft, TbArrowBarRight, TbMessageChatbot,
+  TbArrowBarLeft, TbArrowBarRight, TbMessageChatbot, TbServer, TbLock
 } from "react-icons/tb";
 
 const navItems = [
@@ -29,7 +32,9 @@ const navItems = [
   { id: "api", label: "API Tester", icon: TbApi },
   { id: "tunnel", label: "Tunneling", icon: TbWorldWww },
   { id: "database", label: "Databases", icon: TbDatabase },
+  { id: "services", label: "Services", icon: TbServer },
   { id: "environments", label: "Environments", icon: TbBolt },
+  { id: "env", label: "Env Studio", icon: TbLock },
   { id: "packages", label: "Packages", icon: TbBox },
   { id: "network", label: "Network", icon: TbNetwork },
   { id: "devtools", label: "DevTools", icon: TbTools },
@@ -47,6 +52,7 @@ interface UpdateStatus {
 function App() {
   const [active, setActive] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState("business");
   const [localVersion, setLocalVersion] = useState("");
   const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -61,18 +67,19 @@ function App() {
         const state = JSON.parse(raw);
         if (state.activeTab) setActive(state.activeTab);
         if (typeof state.sidebarCollapsed === "boolean") setSidebarCollapsed(state.sidebarCollapsed);
+        if (state.theme) setTheme(state.theme);
       } catch {}
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    const state = JSON.stringify({ activeTab: active, sidebarCollapsed });
+    const state = JSON.stringify({ activeTab: active, sidebarCollapsed, theme });
     invoke("save_state_file", { state }).catch(() => {});
     const interval = setInterval(() => {
       invoke("save_state_file", { state }).catch(() => {});
     }, 30000);
     return () => clearInterval(interval);
-  }, [active, sidebarCollapsed]);
+  }, [active, sidebarCollapsed, theme]);
 
   useEffect(() => {
     const checkUpdate = async () => {
@@ -134,7 +141,9 @@ function App() {
     api: <ApiTester />,
     tunnel: <Tunnel />,
     database: <DatabaseStudio />,
+    services: <Services />,
     environments: <QuickInstall />,
+    env: <EnvStudio />,
     packages: <Search />,
     network: <Ports />,
     devtools: <DevTools />,
@@ -144,10 +153,10 @@ function App() {
   };
 
   return (
-    <div className="h-full flex text-base-content bg-base-100 font-sans selection:bg-primary selection:text-primary-content" data-theme="business">
-      <aside className={`${sidebarCollapsed ? "w-16" : "w-48"} bg-base-300 flex flex-col shrink-0 border-r border-base-content/10 transition-all duration-200`}>
+    <div className="h-full flex text-base-content bg-base-100 font-sans selection:bg-primary selection:text-primary-content" data-theme={theme}>
+      <aside className={`${sidebarCollapsed ? "w-16" : "w-48"} bg-base-200/60 backdrop-blur-2xl flex flex-col shrink-0 border-r border-base-content/10 transition-all duration-300 ease-in-out`}>
         {/* Logo */}
-        <div className={`${sidebarCollapsed ? "px-0 py-4" : "px-4 py-4"} border-b border-base-content/10 bg-base-200`}>
+        <div className={`${sidebarCollapsed ? "px-0 py-4" : "px-4 py-4"} border-b border-base-content/10 bg-base-200/40 backdrop-blur-md`}>
           <div className={`flex ${sidebarCollapsed ? "justify-center" : "items-center gap-2"}`}>
             <TbTool className="text-xl text-primary shrink-0" />
             {!sidebarCollapsed && (
@@ -244,9 +253,19 @@ function App() {
         )}
 
         {/* Footer */}
-        <div className={`${sidebarCollapsed ? "px-0 py-3" : "px-4 py-2"} border-t border-base-content/10 bg-base-200 shrink-0 flex items-center ${sidebarCollapsed ? "justify-center" : "justify-between"}`}>
+        <div className={`${sidebarCollapsed ? "px-0 py-3 flex-col gap-2" : "px-4 py-2"} border-t border-base-content/10 bg-base-200/40 backdrop-blur-md shrink-0 flex items-center justify-between`}>
           {!sidebarCollapsed && (
-            <p className="text-[10px] text-base-content/40 font-mono">v{localVersion || "0.8.2"}</p>
+            <div className="flex flex-col gap-1">
+              <select className="select select-bordered select-xs w-24 bg-base-100/50 backdrop-blur" value={theme} onChange={(e) => setTheme(e.target.value)}>
+                <option value="business">Business</option>
+                <option value="synthwave">Synthwave</option>
+                <option value="cyberpunk">Cyberpunk</option>
+                <option value="dracula">Dracula</option>
+                <option value="dim">Dim</option>
+                <option value="nord">Nord</option>
+              </select>
+              <p className="text-[9px] text-base-content/40 font-mono text-center">v{localVersion || "0.8.3"}</p>
+            </div>
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -266,6 +285,7 @@ function App() {
           </div>
         ))}
       </main>
+      <CommandPalette items={navItems} onSelect={setActive} />
     </div>
   );
 }

@@ -19,23 +19,28 @@ export default function DockerManager() {
 
   const [tab, setTab] = useState("manager");
   const [services, setServices] = useState({ postgres: false, mysql: false, redis: false, nginx: false });
+  const [ports, setPorts] = useState({ postgres: "5432", mysql: "3306", redis: "6379", nginx: "80" });
+  const [passwords, setPasswords] = useState({ postgres: "password", mysql: "password" });
   const [composePath, setComposePath] = useState("~/projects");
   const [buildLoading, setBuildLoading] = useState(false);
 
   const generateCompose = async () => {
     setBuildLoading(true);
     let yml = "version: '3.8'\nservices:\n";
-    if (services.postgres) yml += "  postgres:\n    image: postgres:latest\n    environment:\n      POSTGRES_PASSWORD: password\n    ports:\n      - '5432:5432'\n";
-    if (services.mysql) yml += "  mysql:\n    image: mysql:latest\n    environment:\n      MYSQL_ROOT_PASSWORD: password\n    ports:\n      - '3306:3306'\n";
-    if (services.redis) yml += "  redis:\n    image: redis:alpine\n    ports:\n      - '6379:6379'\n";
-    if (services.nginx) yml += "  nginx:\n    image: nginx:alpine\n    ports:\n      - '80:80'\n";
+    if (services.postgres) yml += `  postgres:\n    image: postgres:latest\n    environment:\n      POSTGRES_PASSWORD: ${passwords.postgres}\n    ports:\n      - '${ports.postgres}:5432'\n`;
+    if (services.mysql) yml += `  mysql:\n    image: mysql:latest\n    environment:\n      MYSQL_ROOT_PASSWORD: ${passwords.mysql}\n    ports:\n      - '${ports.mysql}:3306'\n`;
+    if (services.redis) yml += `  redis:\n    image: redis:alpine\n    ports:\n      - '${ports.redis}:6379'\n`;
+    if (services.nginx) yml += `  nginx:\n    image: nginx:alpine\n    ports:\n      - '${ports.nginx}:80'\n`;
     try {
       const realPath = composePath.replace(/^~/, "/home/alertxsto");
       await invoke("write_compose_file", { path: realPath + "/docker-compose.yml", content: yml });
       await invoke("run_docker_compose", { path: realPath, action: "up -d" });
       setTab("manager");
       loadContainers();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      alert(`Error generating/starting compose: ${String(e)}`);
+      console.error(e);
+    }
     setBuildLoading(false);
   };
 
@@ -53,7 +58,10 @@ export default function DockerManager() {
     try {
       await invoke("run_docker_action", { id, action });
       loadContainers();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      alert(`Failed to run action '${action}' on ${id}: ${String(e)}`);
+      console.error(e);
+    }
     setActionLoading(null);
   };
 
@@ -179,20 +187,36 @@ export default function DockerManager() {
 
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(services).map(([key, val]) => (
-                  <label
+                  <div
                     key={key}
-                    className={`cursor-pointer rounded-xl border p-4 flex items-center gap-3 transition-all ${
+                    className={`rounded-xl border p-4 flex flex-col gap-3 transition-all ${
                       val ? "border-primary bg-primary/5" : "border-base-content/10 hover:border-base-content/20 bg-base-200/30"
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      className="checkbox checkbox-primary"
-                      checked={val}
-                      onChange={(e) => setServices({ ...services, [key]: e.target.checked })}
-                    />
-                    <span className="font-bold capitalize text-sm">{key}</span>
-                  </label>
+                    <label className="cursor-pointer flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-primary"
+                        checked={val}
+                        onChange={(e) => setServices({ ...services, [key as keyof typeof services]: e.target.checked })}
+                      />
+                      <span className="font-bold capitalize text-sm">{key}</span>
+                    </label>
+                    {val && (
+                      <div className="flex gap-2 pl-8">
+                        <div className="form-control w-full">
+                          <label className="label py-1 px-0"><span className="label-text text-[10px] uppercase opacity-60 font-bold">Host Port</span></label>
+                          <input type="text" className="input input-bordered input-sm font-mono text-xs w-full" value={ports[key as keyof typeof ports]} onChange={(e) => setPorts({ ...ports, [key]: e.target.value })} />
+                        </div>
+                        {(key === "postgres" || key === "mysql") && (
+                          <div className="form-control w-full">
+                            <label className="label py-1 px-0"><span className="label-text text-[10px] uppercase opacity-60 font-bold">Password</span></label>
+                            <input type="text" className="input input-bordered input-sm font-mono text-xs w-full" value={passwords[key as keyof typeof passwords]} onChange={(e) => setPasswords({ ...passwords, [key]: e.target.value })} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
 

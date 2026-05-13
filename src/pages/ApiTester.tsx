@@ -17,18 +17,15 @@ export default function ApiTester() {
     setLoading(true); setResponse(""); setStatus("Loading...");
     try {
       const res: string = await invoke("send_http_request", { method, url, body, headers });
-      const parts = res.split("\r\n\r\n");
-      let headerStr = parts[0];
-      let bodyStr = parts.slice(1).join("\r\n\r\n");
-      if (!bodyStr && res.includes("\n\n")) {
-        const parts2 = res.split("\n\n");
-        headerStr = parts2[0];
-        bodyStr = parts2.slice(1).join("\n\n");
+      const parsedRes = JSON.parse(res);
+      setStatus(`HTTP ${parsedRes.status}`);
+      const headerStr = Object.entries(parsedRes.headers).map(([k, v]) => `${k}: ${v}`).join("\n");
+      try {
+        const parsedBody = JSON.parse(parsedRes.body);
+        setResponse(headerStr + "\n\n" + JSON.stringify(parsedBody, null, 2));
+      } catch {
+        setResponse(headerStr + "\n\n" + parsedRes.body);
       }
-      const statusLine = headerStr.split("\n")[0];
-      setStatus(statusLine);
-      try { const parsed = JSON.parse(bodyStr); setResponse(headerStr + "\n\n" + JSON.stringify(parsed, null, 2)); }
-      catch { setResponse(res); }
       setHistory((prev) => [{ url, method, time: new Date().toLocaleTimeString() }, ...prev].slice(0, 15));
     } catch (e) { setStatus("Error"); setResponse(String(e)); }
     setLoading(false);

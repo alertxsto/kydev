@@ -39,10 +39,15 @@ export default function Packages() {
   const pkgAction = async (action: "install" | "remove", name: string) => {
     setIsProcessing(true);
     setActionOutput(`Running dnf ${action} ${name}...\n`);
-    const out = await invoke(`${action}_package`, { name }) as string;
-    setActionOutput((prev) => prev + out);
-    setIsProcessing(false);
-    getDetails(name);
+    try {
+      const out = await invoke(`${action}_package`, { name }) as string;
+      setActionOutput((prev) => prev + out);
+    } catch (e) {
+      setActionOutput((prev) => prev + `\n[ERROR] ${String(e)}`);
+    } finally {
+      setIsProcessing(false);
+      getDetails(name);
+    }
   };
 
   const loadUpdates = async () => {
@@ -53,10 +58,15 @@ export default function Packages() {
 
   const runUpdate = async () => {
     setIsProcessing(true); setUpdateOutput("Starting system upgrade...\n");
-    const out = await invoke("run_update") as string;
-    setUpdateOutput((prev) => prev + out);
-    setIsProcessing(false);
-    loadUpdates();
+    try {
+      const out = await invoke("run_update") as string;
+      setUpdateOutput((prev) => prev + out);
+    } catch (e) {
+      setUpdateOutput((prev) => prev + `\n[ERROR] ${String(e)}`);
+    } finally {
+      setIsProcessing(false);
+      loadUpdates();
+    }
   };
 
   const loadHistory = async () => {

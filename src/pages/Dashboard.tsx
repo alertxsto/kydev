@@ -1,11 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   TbDeviceDesktop, TbCpu, TbServer,
   TbTerminal2, TbHeartbeat, TbDeviceAnalytics,
   TbDeviceFloppy, TbPackage, TbAlertTriangle,
-  TbGitCommit, TbRefresh,
+  TbGitCommit, TbRefresh, TbActivity,
 } from "react-icons/tb";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer,
+} from "recharts";
 
 interface SystemInfo {
   os: string; kernel: string; hostname: string; cpu: string;
@@ -15,6 +19,7 @@ interface SystemInfo {
 }
 
 interface UpdateInfo { count: number; has_updates: boolean }
+interface ChartPoint { t: string; cpu: number; mem: number; }
 
 function formatUptime(raw: string): string {
   const days = Math.floor(Number(raw) / 86400);
@@ -35,20 +40,36 @@ export default function Dashboard() {
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [updates, setUpdates] = useState<UpdateInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadInfo = async () => {
+    try {
+      const sys = await invoke("get_system_info") as SystemInfo;
+      setInfo(sys);
+      const now = new Date();
+      const label = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`;
+      setChartData(prev => {
+        const next = [...prev, { t: label, cpu: 0, mem: Math.round(sys.memory_pct) }];
+        return next.slice(-30);
+      });
+    } catch (e) { console.error(e); }
+  };
 
   useEffect(() => {
-    async function load() {
-      try {
-        const sys = await invoke("get_system_info");
-        setInfo(sys as SystemInfo);
-      } catch (e) { console.error(e); }
+    async function init() {
+      setLoading(true);
+      await loadInfo();
       setLoading(false);
       try {
         const upd = await invoke("check_updates");
         setUpdates(upd as UpdateInfo);
       } catch (e) { console.error(e); }
     }
-    load();
+    init();
+
+    timerRef.current = setInterval(loadInfo, 3000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
   if (loading) {
@@ -62,7 +83,6 @@ export default function Dashboard() {
   const pct = (v?: number) => v ?? 0;
   const memPct = pct(info?.memory_pct);
   const diskPct = pct(info?.disk_pct);
-
   const memBar = memPct > 80 ? "progress-error" : memPct > 60 ? "progress-warning" : "progress-success";
   const diskBar = diskPct > 80 ? "progress-error" : diskPct > 60 ? "progress-warning" : "progress-success";
 
@@ -73,29 +93,9 @@ export default function Dashboard() {
     { icon: TbGitCommit, label: info?.kernel ?? "—" },
   ];
 
-  const resources = [
-    {
-      icon: TbCpu, title: "CPU", color: "from-sky-500/20 to-sky-600/5",
-      textColor: "text-sky-400", body: miniCpu(info?.cpu ?? ""),
-      extra: null,
-    },
-    {
-      icon: TbDeviceAnalytics, title: "Memory", color: "from-violet-500/20 to-violet-600/5",
-      textColor: "text-violet-400",
-      body: `${info?.memory_used} / ${info?.memory_total}`,
-      pct: memPct, bar: memBar,
-    },
-    {
-      icon: TbDeviceFloppy, title: "Disk", color: "from-amber-500/20 to-amber-600/5",
-      textColor: "text-amber-400",
-      body: `${info?.disk_used} / ${info?.disk_total}`,
-      pct: diskPct, bar: diskBar,
-    },
-  ];
-
   return (
     <div className="p-6 space-y-5 max-w-5xl">
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
@@ -103,13 +103,15 @@ export default function Dashboard() {
             {info?.hostname ?? "system"} &middot; up {formatUptime(info?.uptime ?? "0")}
           </p>
         </div>
-        <div className="badge badge-soft badge-primary gap-1.5 py-3 px-3">
-          <TbServer size={14} />
-          {info?.packages ?? 0} packages
+        <div className="flex items-center gap-3">
+          <div className="badge badge-soft badge-primary gap-1.5 py-3 px-3">
+            <TbServer size={14} />
+            {info?.packages ?? 0} packages
+          </div>
         </div>
       </div>
 
-      {/* ── System Chips ── */}
+      {/* System Chips */}
       <div className="flex flex-wrap gap-2">
         {sysChips.map((c) => (
           <div key={c.label} className="badge badge-soft badge-ghost gap-1.5 py-3 px-3 text-xs font-normal">
@@ -119,57 +121,91 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── Resource Cards ── */}
+      {/* Resource Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {resources.map((r) => (
-          <div
-            key={r.title}
-            className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden"
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br ${r.color} pointer-events-none`} />
-            <div className="relative p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className={r.textColor}>{r.icon({ size: 20 })}</span>
-                <span className="font-semibold text-sm">{r.title}</span>
-              </div>
-              <p className="text-xs text-base-content/70 leading-relaxed">{r.body}</p>
-              {r.pct != null && (
-                <div className="space-y-1 pt-1">
-                  <progress
-                    className={`progress w-full h-2 ${r.bar}`}
-                    value={r.pct}
-                    max="100"
-                  />
-                  <p className="text-xs text-right text-base-content/40">{r.pct}%</p>
-                </div>
-              )}
+        <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-500/20 to-sky-600/5 pointer-events-none" />
+          <div className="relative p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sky-400"><TbCpu size={20} /></span>
+              <span className="font-semibold text-sm">CPU</span>
+            </div>
+            <p className="text-xs text-base-content/70 leading-relaxed">{miniCpu(info?.cpu ?? "")}</p>
+          </div>
+        </div>
+        <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-violet-600/5 pointer-events-none" />
+          <div className="relative p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-violet-400"><TbDeviceAnalytics size={20} /></span>
+              <span className="font-semibold text-sm">Memory</span>
+            </div>
+            <p className="text-xs text-base-content/70">{info?.memory_used} / {info?.memory_total}</p>
+            <div className="space-y-1 pt-1">
+              <progress className={`progress w-full h-2 ${memBar}`} value={memPct} max="100" />
+              <p className="text-xs text-right text-base-content/40">{memPct.toFixed(1)}%</p>
             </div>
           </div>
-        ))}
+        </div>
+        <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 to-amber-600/5 pointer-events-none" />
+          <div className="relative p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400"><TbDeviceFloppy size={20} /></span>
+              <span className="font-semibold text-sm">Disk</span>
+            </div>
+            <p className="text-xs text-base-content/70">{info?.disk_used} / {info?.disk_total}</p>
+            <div className="space-y-1 pt-1">
+              <progress className={`progress w-full h-2 ${diskBar}`} value={diskPct} max="100" />
+              <p className="text-xs text-right text-base-content/40">{diskPct.toFixed(1)}%</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── Updates ── */}
+      {/* Live Memory Chart */}
+      {chartData.length > 2 && (
+        <div className="rounded-2xl border border-base-300/40 bg-base-200/70 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <TbActivity size={18} className="text-violet-400" />
+            <span className="font-semibold text-sm">Memory Usage — Live</span>
+            <span className="badge badge-xs badge-ghost ml-auto animate-pulse">● LIVE</span>
+          </div>
+          <ResponsiveContainer width="100%" height={140}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="memGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="t" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }} tickLine={false} axisLine={false} unit="%" />
+              <Tooltip
+                contentStyle={{ background: "rgba(20,20,30,0.85)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", fontSize: "11px" }}
+                labelStyle={{ color: "rgba(255,255,255,0.6)" }}
+                formatter={(v: any) => [`${Number(v).toFixed(1)}%`, "Memory"]}
+              />
+              <Area type="monotone" dataKey="mem" stroke="#8b5cf6" strokeWidth={2} fill="url(#memGrad)" dot={false} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Updates */}
       {updates && (
-        <div
-          className={`relative rounded-2xl border overflow-hidden cursor-pointer transition hover:brightness-105 ${
-            updates.has_updates
-              ? "border-warning/30 bg-warning/5"
-              : "border-success/20 bg-success/5"
-          }`}
-          onClick={() => window.location.hash = "#system"}
-        >
+        <div className={`relative rounded-2xl border overflow-hidden transition hover:brightness-105 ${updates.has_updates ? "border-warning/30 bg-warning/5" : "border-success/20 bg-success/5"}`}>
           <div className="p-4 flex items-center gap-4">
             <div className={`p-2 rounded-xl ${updates.has_updates ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
               {updates.has_updates ? <TbAlertTriangle size={24} /> : <TbPackage size={24} />}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold">
-                {updates.has_updates
-                  ? `${updates.count} update${updates.count > 1 ? "s" : ""} available`
-                  : "System is up to date"}
+                {updates.has_updates ? `${updates.count} update${updates.count > 1 ? "s" : ""} available` : "System is up to date"}
               </p>
               <p className="text-xs text-base-content/50 mt-0.5">
-                {updates.has_updates ? "Click to view and install" : `Based on ${info?.packages ?? 0} installed packages`}
+                {updates.has_updates ? "Go to Packages to install" : `Based on ${info?.packages ?? 0} installed packages`}
               </p>
             </div>
             <TbRefresh size={18} className="text-base-content/30 shrink-0" />

@@ -508,18 +508,53 @@ async fn write_compose_file(path: String, content: String) -> String {
 
 // ── API Tester ────────────────────────────────────────────────────────
 
+#[derive(Serialize)]
+struct HttpResponse {
+    status: u16,
+    headers: HashMap<String, String>,
+    body: String,
+}
+
 #[tauri::command]
-async fn send_http_request(method: String, url: String, body: String, headers: String) -> String {
-    let mut args = vec!["-s", "-i", "-X", &method];
-    if !body.is_empty() {
-        args.push("-d"); args.push(&body);
+async fn send_http_request(method: String, url: String, body: String, headers: String) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let mut req = match method.as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        "PATCH" => client.patch(&url),
+        _ => return Err("Invalid method".into()),
+    };
+    
+    for line in headers.lines() {
+        if let Some((k, v)) = line.split_once(':') {
+            req = req.header(k.trim(), v.trim());
+        }
     }
-    let h_list: Vec<&str> = headers.split('\n').filter(|s| !s.trim().is_empty()).collect();
-    for h in &h_list {
-        args.push("-H"); args.push(h);
+    
+    if !body.is_empty() && method != "GET" {
+        req = req.body(body);
     }
-    args.push(&url);
-    run_cmd("curl", &args)
+    
+    match req.send().await {
+        Ok(res) => {
+            let status = res.status().as_u16();
+            let mut headers_map = HashMap::new();
+            for (k, v) in res.headers().iter() {
+                headers_map.insert(k.as_str().to_string(), v.to_str().unwrap_or("").to_string());
+            }
+            let body_text = res.text().await.unwrap_or_default();
+            
+            let response = HttpResponse {
+                status,
+                headers: headers_map,
+                body: body_text,
+            };
+            Ok(serde_json::to_string(&response).unwrap_or_default())
+        }
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 // ── Localhost Tunneling ───────────────────────────────────────────────
@@ -810,6 +845,102 @@ async fn hermes_get_status() -> String {
     run_cmd("hermes", &["status", "--all"])
 }
 
+// ── System Services (systemd) ────────────────────────────────────────
+
+#[derive(Serialize)]
+struct ServiceEntry {
+    name: String,
+    enabled: bool,
+    active: bool,
+    description: String,
+}
+
+#[tauri::command]
+async fn list_system_services() -> Vec<ServiceEntry> {
+    let out = run_cmd("systemctl", &["list-units", "--type=service", "--all", "--no-pager", "--plain", "--no-legend"]);
+    let mut services = Vec::new();
+    for line in out.lines().take(60) {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 4 { continue; }
+        let name = parts[0].trim_end_matches('.').to_string();
+        let active = parts[2] == "active";
+        let enabled = run_cmd("systemctl", &["is-enabled", parts[0]]).trim().to_string() == "enabled";
+        let description = parts[4..].join(" ");
+        services.push(ServiceEntry { name, enabled, active, description });
+    }
+    services
+}
+
+#[tauri::command]
+async fn manage_service(name: String, action: String) -> Result<String, String> {
+    let valid = ["start", "stop", "restart", "enable", "disable"];
+    if !valid.contains(&action.as_str()) { return Err("Invalid action".into()); }
+    match tokio::process::Command::new("pkexec")
+        .args(["systemctl", &action, &name])
+        .output().await {
+        Ok(o) => {
+            let out = String::from_utf8_lossy(&o.stdout).to_string();
+            let err = String::from_utf8_lossy(&o.stderr).to_string();
+            if o.status.success() { Ok(out) } else { Err(err) }
+        }
+        Err(e) => Err(e.to_string())
+    }
+}
+
+// ── Env Studio ────────────────────────────────────────────────────────
+
+#[derive(Serialize, serde::Deserialize)]
+struct EnvVar {
+    key: String,
+    value: String,
+}
+
+#[tauri::command]
+async fn read_env_file(path: String) -> Result<Vec<EnvVar>, String> {
+    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let vars = content.lines()
+        .filter(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
+        .filter_map(|line| line.split_once('='))
+        .map(|(k, v)| EnvVar {
+            key: k.trim().to_string(),
+            value: v.trim_matches('"').trim_matches('\'').to_string(),
+        })
+        .collect();
+    Ok(vars)
+}
+
+#[tauri::command]
+async fn write_env_file(path: String, vars: Vec<EnvVar>) -> Result<(), String> {
+    let content = vars.iter()
+        .map(|v| format!("{}={}", v.key, v.value))
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(&path, content + "\n").map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn find_env_files(root: String) -> Vec<String> {
+    let mut results = Vec::new();
+    fn walk(dir: &std::path::Path, results: &mut Vec<String>, depth: usize) {
+        if depth > 3 { return; }
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if name_str.starts_with('.') && name_str != ".env" && !name_str.starts_with(".env.") { continue; }
+                if name_str.starts_with("node_modules") || name_str.starts_with(".git") { continue; }
+                if path.is_dir() { walk(&path, results, depth + 1); }
+                else if name_str == ".env" || name_str.starts_with(".env.") {
+                    results.push(path.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+    walk(std::path::Path::new(&root), &mut results, 0);
+    results
+}
+
 // ── App Entry ─────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -833,6 +964,8 @@ pub fn run() {
              hermes_config_read, hermes_config_set, hermes_get_logs,
              hermes_sessions_list, hermes_cron_list, hermes_cron_create, hermes_cron_remove,
              hermes_run_doctor, hermes_get_status,
+             list_system_services, manage_service,
+             read_env_file, write_env_file, find_env_files,
          ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

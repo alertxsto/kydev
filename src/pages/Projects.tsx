@@ -34,12 +34,20 @@ export default function Projects() {
 
   const runScript = async (p: Project, script: string) => {
     setScriptOutput(`Running ${script} in ${p.name}...\n`);
-    const out = await invoke("run_project_script", { path: p.path, script, lang: p.lang });
-    setScriptOutput((prev) => prev + out);
+    try {
+      const out = await invoke("run_project_script", { path: p.path, script, lang: p.lang });
+      setScriptOutput((prev) => prev + out);
+    } catch (e) {
+      setScriptOutput((prev) => prev + `\n[ERROR] ${String(e)}`);
+    }
   };
 
   const openEditor = async (p: Project, editor: string) => {
-    await invoke("open_in_editor", { path: p.path, editor });
+    try {
+      await invoke("open_in_editor", { path: p.path, editor });
+    } catch (e) {
+      setScriptOutput((prev) => prev + `\n[ERROR opening editor] ${String(e)}`);
+    }
   };
 
   const langColor = (lang: string) => {
