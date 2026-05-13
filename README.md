@@ -1,6 +1,6 @@
 # 🛠️ KyDev Toolbox
 
-![Version](https://img.shields.io/badge/version-0.8.7-blue.svg)
+![Version](https://img.shields.io/badge/version-0.8.8-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)
 
@@ -60,5 +60,5 @@ For complete documentation on how the app is structured and how to use every fea
 
 KyDev embraces standard Linux security paradigms. Privileged operations (like installing system packages or restarting system services) securely prompt for your password using **`pkexec`** (PolicyKit), ensuring no hardcoded passwords are ever used.
 
---- Dwiky Candra
+---
 *Built for the ultimate Linux Developer experience.*
