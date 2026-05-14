@@ -6,6 +6,7 @@
 
 **KyDev Toolbox** is the ultimate native Linux Developer Dashboard. Built specifically for developers on Linux (specifically Fedora/RHEL-based distributions utilizing DNF), KyDev transforms your daily system management and development tasks into a 1-click graphical experience.
 
+
 Forget keeping 10 different terminal windows open for logs, database queries, and port forwarding. KyDev brings it all into one sleek, high-performance desktop application built with **Rust** and **Tauri**.
 
 ## ⚡ Quick Install (Copy & Paste)
