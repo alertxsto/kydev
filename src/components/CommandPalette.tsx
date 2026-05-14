@@ -12,13 +12,24 @@ interface CommandItem {
 interface CommandPaletteProps {
   items: CommandItem[];
   onSelect: (id: string) => void;
+  open?: boolean;
+  onClose?: () => void;
 }
 
-export default function CommandPalette({ items, onSelect }: CommandPaletteProps) {
+export default function CommandPalette({ items, onSelect, open: externalOpen, onClose }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync with external open prop
+  useEffect(() => {
+    if (externalOpen) {
+      setOpen(true);
+      setQuery("");
+      setSelectedIndex(0);
+    }
+  }, [externalOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -30,11 +41,12 @@ export default function CommandPalette({ items, onSelect }: CommandPaletteProps)
       }
       if (e.key === "Escape") {
         setOpen(false);
+        onClose?.();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [onClose]);
 
   useEffect(() => {
     if (open) {
@@ -69,64 +81,66 @@ export default function CommandPalette({ items, onSelect }: CommandPaletteProps)
     }
   };
 
+  const handleClose = () => { setOpen(false); onClose?.(); };
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-base-300/80 backdrop-blur-sm" onClick={() => setOpen(false)}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-base-300/80 backdrop-blur-sm" onClick={handleClose}>
       <div 
         className="w-full max-w-lg bg-base-100 rounded-2xl shadow-2xl overflow-hidden border border-base-content/10 flex flex-col max-h-[60vh] animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center px-4 py-3 border-b border-base-content/10 gap-3">
-          <TbSearch className="text-xl text-primary" />
+        <div className="flex items-center px-5 py-4 border-b border-base-content/10 gap-3">
+          <TbSearch className="text-2xl text-primary" />
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-transparent outline-none text-base font-medium"
+            className="flex-1 bg-transparent outline-none text-lg font-medium"
             placeholder="Search commands or jump to..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
           />
-          <kbd className="kbd kbd-sm font-sans opacity-50">ESC</kbd>
+          <kbd className="kbd kbd-sm font-sans opacity-60 text-xs font-bold">ESC</kbd>
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-3">
           {filteredItems.length === 0 ? (
-            <div className="py-10 text-center text-sm text-base-content/40">
+            <div className="py-12 text-center text-base text-base-content/40 font-medium">
               No results found for "{query}"
             </div>
           ) : (
-            <div className="space-y-1">
-              <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-base-content/40">Navigation</div>
+            <div className="space-y-1.5">
+              <div className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-base-content/50">Navigation</div>
               {filteredItems.map((item, idx) => {
                 const Icon = item.icon;
                 const isSelected = idx === selectedIndex;
                 return (
                   <button
                     key={item.id}
-                    className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm transition-colors ${
-                      isSelected ? "bg-primary text-primary-content" : "hover:bg-base-200"
+                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-base font-medium transition-colors ${
+                      isSelected ? "bg-primary text-primary-content shadow-lg" : "hover:bg-base-200/70"
                     }`}
                     onClick={() => {
                       onSelect(item.id);
-                      setOpen(false);
+                      handleClose();
                     }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`text-lg ${isSelected ? "opacity-100" : "opacity-60"}`} />
-                      <span className="font-medium">{item.label}</span>
+                      <Icon className={`text-xl ${isSelected ? "opacity-100" : "opacity-70"}`} />
+                      <span className="font-semibold">{item.label}</span>
                     </div>
-                    {isSelected && <TbArrowRight className="opacity-70" />}
+                    {isSelected && <TbArrowRight className="opacity-80 text-lg" />}
                   </button>
                 );
               })}
             </div>
           )}
         </div>
-        <div className="px-4 py-2 border-t border-base-content/10 bg-base-200/50 flex items-center justify-between text-[10px] text-base-content/50">
-          <span><kbd className="kbd kbd-xs">↑</kbd> <kbd className="kbd kbd-xs">↓</kbd> to navigate</span>
-          <span><kbd className="kbd kbd-xs">Enter</kbd> to select</span>
+        <div className="px-5 py-3 border-t border-base-content/10 bg-base-200/50 flex items-center justify-between text-xs text-base-content/60 font-medium">
+          <span><kbd className="kbd kbd-xs text-xs">↑</kbd> <kbd className="kbd kbd-xs text-xs">↓</kbd> navigate</span>
+          <span><kbd className="kbd kbd-xs text-xs">Enter</kbd> select</span>
         </div>
       </div>
     </div>

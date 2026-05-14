@@ -888,16 +888,55 @@ fn read_config_file(path: String) -> String {
 #[tauri::command]
 fn get_disk_usage() -> String { run_cmd("sh", &["-c", "df -h / | tail -1 | awk '{print $3 \" / \" $2 \" (\" $5 \")\"}'"]) }
 
+fn find_update_script() -> Result<std::path::PathBuf, String> {
+    if let Ok(p) = std::env::var("KYDEV_UPDATE_SCRIPT") {
+        let path = std::path::PathBuf::from(p.trim());
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
+    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+    let def = std::path::PathBuf::from(format!("{}/.kydev/update.sh", home.trim_end_matches('/')));
+    if def.is_file() {
+        return Ok(def);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        let mut dir = match exe.parent() {
+            Some(d) => d.to_path_buf(),
+            None => return Err("KyDev update.sh not found (~/.kydev/update.sh missing). Clone the repo or run the installer.".into()),
+        };
+        for _ in 0..16 {
+            let cand = dir.join("update.sh");
+            if cand.is_file() {
+                return Ok(cand);
+            }
+            if !dir.pop() {
+                break;
+            }
+        }
+    }
+    Err("KyDev update.sh not found. Expected ~/.kydev/update.sh (after install) or update.sh next to the app when developing.".into())
+}
+
 #[tauri::command]
 async fn run_kydev_update() -> Result<String, String> {
-    let log_path = kydev_data_dir()?.join("update.log");
-    let q = sh_single_quote(&log_path.to_string_lossy());
+    let script = find_update_script()?;
+    let dir = kydev_data_dir()?;
+    let log_path = dir.join("update.log");
+    let exit_path = dir.join("update.exit");
+    let _ = std::fs::remove_file(&exit_path);
+    let q_log = sh_single_quote(&log_path.to_string_lossy());
+    let q_exit = sh_single_quote(&exit_path.to_string_lossy());
+    let q_script = sh_single_quote(&script.to_string_lossy());
     let pid = run_cmd(
         "sh",
-        &["-c", &format!("bash ~/.kydev/update.sh > {} 2>&1 & echo $!", q)],
+        &["-c", &format!(
+            "(bash {} > {} 2>&1; echo $? > {}) & echo $!",
+            q_script, q_log, q_exit
+        )],
     );
     let pid = pid.trim().to_string();
-    if pid.is_empty() {
+    if pid.is_empty() || !pid.chars().all(|c| c.is_ascii_digit()) {
         return Err("Failed to start update process".into());
     }
     Ok(pid)
@@ -919,14 +958,23 @@ fn check_update_status(pid: String) -> HashMap<String, String> {
     result.insert("running".into(), is_running.clone());
 
     let log_output = match kydev_data_dir().and_then(|d| std::fs::read_to_string(d.join("update.log")).map_err(|e| e.to_string())) {
-        Ok(content) => content.lines().rev().take(30).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n"),
+        Ok(content) => content.lines().rev().take(40).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n"),
         Err(_) => String::new(),
     };
-    result.insert("log".into(), log_output);
+    result.insert("log".into(), log_output.clone());
 
     if is_running != "running" {
-        let exit_code = run_cmd("sh", &["-c", &format!("wait {} 2>/dev/null; echo $?", pid)]);
-        result.insert("success".into(), (exit_code.trim() == "0").to_string());
+        // `wait` only works for children of the same shell — do not use it here.
+        let mut ok = false;
+        if let Ok(dir) = kydev_data_dir() {
+            if let Ok(code) = std::fs::read_to_string(dir.join("update.exit")) {
+                ok = code.trim() == "0";
+            }
+        }
+        if !ok && log_output.contains("UPGRADE COMPLETE") {
+            ok = true;
+        }
+        result.insert("success".into(), ok.to_string());
     }
 
     result

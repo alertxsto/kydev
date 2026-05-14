@@ -236,22 +236,22 @@ export default function Projects() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 md:p-5 border-b border-base-content/10 bg-base-200/40 shrink-0 space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="p-6 md:p-7 border-b border-base-content/10 bg-base-200/40 shrink-0 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold tracking-tight">Project Control Center</h2>
-            <p className="text-xs md:text-sm text-base-content/50 mt-0.5">
+            <h2 className="text-3xl md:text-3xl font-bold tracking-tight">Project Control Center</h2>
+            <p className="text-base text-base-content/60 mt-2 font-medium">
               Scan a folder of repos, run scripts, open tools
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             {scanned && (
               <>
-                <button type="button" className="btn btn-sm btn-ghost gap-1" onClick={changeDirectory}>
+                <button type="button" className="btn btn-sm btn-ghost gap-2 text-base font-semibold h-10 px-4" onClick={changeDirectory}>
                   Change folder
                 </button>
-                <button type="button" className="btn btn-sm btn-outline gap-1" onClick={() => scan(homeDir)} disabled={loading}>
-                  {loading ? <span className="loading loading-spinner loading-xs" /> : <TbRefresh size={14} />}
+                <button type="button" className="btn btn-sm btn-outline gap-2 text-base font-semibold h-10 px-4" onClick={() => scan(homeDir)} disabled={loading}>
+                  {loading ? <span className="loading loading-spinner loading-xs" /> : <TbRefresh size={16} />}
                   Rescan
                 </button>
               </>
@@ -260,13 +260,13 @@ export default function Projects() {
         </div>
 
         {recent.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] uppercase tracking-wider text-base-content/35 font-bold">Recent</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-wider text-base-content/50 font-bold">Recent</span>
             {recent.map((p) => (
               <button
                 key={p}
                 type="button"
-                className="btn btn-xs btn-ghost h-7 min-h-0 font-mono text-[10px] normal-case max-w-[200px] truncate"
+                className="btn btn-xs btn-ghost h-8 min-h-0 font-mono text-xs normal-case max-w-[200px] truncate font-semibold"
                 title={p}
                 onClick={() => {
                   setHomeDir(p);
@@ -280,7 +280,7 @@ export default function Projects() {
         )}
 
         {!scanned && (
-          <div className="max-w-xl space-y-2">
+          <div className="max-w-xl space-y-3">
             <DirInput
               label="Scan directory"
               value={homeDir}
@@ -288,53 +288,53 @@ export default function Projects() {
               placeholder="~/projects"
               onEnter={() => scan(homeDir)}
             />
-            <button type="button" className="btn btn-primary btn-sm gap-1" onClick={() => scan(homeDir)} disabled={loading}>
-              <TbSearch size={14} /> Scan
+            <button type="button" className="btn btn-primary gap-2 font-bold text-base h-11 px-5" onClick={() => scan(homeDir)} disabled={loading}>
+              <TbSearch size={18} /> Scan
             </button>
           </div>
         )}
 
         {scanned && !loading && projects.length > 0 && (
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <div className="stats stats-horizontal shadow-sm bg-base-100/80 border border-base-content/10 rounded-xl text-[11px]">
-                <div className="stat py-2 px-3 place-items-center">
-                  <div className="stat-title text-[9px] uppercase opacity-50">Repos</div>
-                  <div className="stat-value text-lg leading-none">{stats.total}</div>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-wrap gap-3">
+              <div className="stats stats-horizontal shadow-sm bg-base-100/80 border border-base-content/10 rounded-xl text-xs">
+                <div className="stat py-3 px-4 place-items-center">
+                  <div className="stat-title text-xs uppercase opacity-60 font-bold">Repos</div>
+                  <div className="stat-value text-2xl leading-none">{stats.total}</div>
                 </div>
-                <div className="stat py-2 px-3 place-items-center">
-                  <div className="stat-title text-[9px] uppercase opacity-50">Dirty</div>
-                  <div className={`stat-value text-lg leading-none ${stats.dirty ? "text-warning" : ""}`}>{stats.dirty}</div>
+                <div className="stat py-3 px-4 place-items-center">
+                  <div className="stat-title text-xs uppercase opacity-60 font-bold">Dirty</div>
+                  <div className={`stat-value text-2xl leading-none ${stats.dirty ? "text-warning" : ""}`}>{stats.dirty}</div>
                 </div>
-                <div className="stat py-2 px-3 place-items-center">
-                  <div className="stat-title text-[9px] uppercase opacity-50">Δ files</div>
-                  <div className="stat-value text-lg leading-none">{stats.changed}</div>
+                <div className="stat py-3 px-4 place-items-center">
+                  <div className="stat-title text-xs uppercase opacity-60 font-bold">Δ files</div>
+                  <div className="stat-value text-2xl leading-none">{stats.changed}</div>
                 </div>
               </div>
               {Object.keys(stats.byLang).length > 0 && (
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="flex flex-wrap items-center gap-2">
                   {Object.entries(stats.byLang)
                     .sort((a, b) => b[1] - a[1])
                     .map(([lang, n]) => (
-                      <span key={lang} className={`badge badge-sm ${langBadgeClass(lang)}`}>
+                      <span key={lang} className={`badge badge-lg ${langBadgeClass(lang)} text-sm font-semibold py-3 px-3`}>
                         {lang} · {n}
                       </span>
                     ))}
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap gap-2 max-w-full">
-              <label className="input input-bordered input-sm flex items-center gap-2 min-w-[140px] flex-1 max-w-xs bg-base-100/80">
-                <TbSearch size={14} className="opacity-40 shrink-0" />
+            <div className="flex flex-wrap gap-3 max-w-full">
+              <label className="input input-bordered flex items-center gap-2 min-w-[140px] flex-1 max-w-xs bg-base-100/80 h-11 px-4 font-medium">
+                <TbSearch size={16} className="opacity-50 shrink-0" />
                 <input
                   type="search"
-                  className="grow min-w-0 text-sm"
+                  className="grow min-w-0 text-base font-medium"
                   placeholder="Filter…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
               </label>
-              <select className="select select-bordered select-sm bg-base-100/80" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+              <select className="select select-bordered bg-base-100/80 h-11 px-4 font-bold text-base" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
                 <option value="name">Sort: A → Z</option>
                 <option value="name_desc">Sort: Z → A</option>
                 <option value="dirty">Sort: Dirty first</option>

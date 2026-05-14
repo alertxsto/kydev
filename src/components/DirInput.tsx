@@ -17,18 +17,18 @@ export default function DirInput({ value, onChange, placeholder, label, onEnter 
 
   return (
     <div>
-      {label && <label className="label"><span className="label-text font-semibold">{label}</span></label>}
-      <div className="flex gap-2">
+      {label && <label className="label"><span className="label-text font-bold text-base">{label}</span></label>}
+      <div className="flex gap-3">
         <input
           type="text"
-          className="input input-bordered w-full font-mono text-sm"
+          className="input input-bordered w-full font-mono text-base px-4 py-3 h-12"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onEnter?.()}
           placeholder={placeholder}
         />
-        <button className="btn btn-outline btn-square shrink-0" onClick={browse} title="Browse">
-          <TbFolderSearch size={18} />
+        <button className="btn btn-outline btn-square shrink-0 h-12 w-12 text-base font-semibold" onClick={browse} title="Browse">
+          <TbFolderSearch size={20} />
         </button>
       </div>
     </div>

@@ -109,70 +109,70 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="p-6 space-y-5 max-w-5xl">
+    <div className="p-8 space-y-7 max-w-5xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-sm text-base-content/50 mt-0.5">
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-base text-base-content/60 mt-1.5 font-medium">
             {info?.hostname ?? "system"} &middot; up {formatUptime(info?.uptime ?? "0")}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="badge badge-soft badge-primary gap-1.5 py-3 px-3">
-            <TbServer size={14} />
+          <div className="badge badge-soft badge-primary gap-2 py-3.5 px-4 text-sm font-semibold">
+            <TbServer size={16} />
             {info?.packages ?? 0} packages
           </div>
         </div>
       </div>
 
       {/* System Chips */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-3">
         {sysChips.map((c) => (
-          <div key={c.label} className="badge badge-soft badge-ghost gap-1.5 py-3 px-3 text-xs font-normal">
-            <c.icon size={14} className="text-base-content/60" />
+          <div key={c.label} className="badge badge-soft badge-ghost gap-2 py-3.5 px-4 text-sm font-medium">
+            <c.icon size={16} className="text-base-content/70" />
             {c.label}
           </div>
         ))}
       </div>
 
       {/* Resource Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-sky-500/20 to-sky-600/5 pointer-events-none" />
-          <div className="relative p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sky-400"><TbCpu size={20} /></span>
-              <span className="font-semibold text-sm">CPU</span>
+          <div className="relative p-6 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="text-sky-400"><TbCpu size={22} /></span>
+              <span className="font-bold text-base">CPU</span>
             </div>
-            <p className="text-xs text-base-content/70 leading-relaxed">{miniCpu(info?.cpu ?? "")}</p>
+            <p className="text-sm text-base-content/75 leading-relaxed font-medium">{miniCpu(info?.cpu ?? "")}</p>
           </div>
         </div>
         <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-violet-600/5 pointer-events-none" />
-          <div className="relative p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-violet-400"><TbDeviceAnalytics size={20} /></span>
-              <span className="font-semibold text-sm">Memory</span>
+          <div className="relative p-6 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="text-violet-400"><TbDeviceAnalytics size={22} /></span>
+              <span className="font-bold text-base">Memory</span>
             </div>
-            <p className="text-xs text-base-content/70">{info?.memory_used} / {info?.memory_total}</p>
-            <div className="space-y-1 pt-1">
-              <progress className={`progress w-full h-2 ${memBar}`} value={memPct} max="100" />
-              <p className="text-xs text-right text-base-content/40">{memPct.toFixed(1)}%</p>
+            <p className="text-sm text-base-content/75 font-medium">{info?.memory_used} / {info?.memory_total}</p>
+            <div className="space-y-2 pt-2">
+              <progress className={`progress w-full h-2.5 ${memBar}`} value={memPct} max="100" />
+              <p className="text-sm text-right text-base-content/60 font-medium">{memPct.toFixed(1)}%</p>
             </div>
           </div>
         </div>
         <div className="relative rounded-2xl border border-base-300/40 bg-base-200/70 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 to-amber-600/5 pointer-events-none" />
-          <div className="relative p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-amber-400"><TbDeviceFloppy size={20} /></span>
-              <span className="font-semibold text-sm">Disk</span>
+          <div className="relative p-6 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="text-amber-400"><TbDeviceFloppy size={22} /></span>
+              <span className="font-bold text-base">Disk</span>
             </div>
-            <p className="text-xs text-base-content/70">{info?.disk_used} / {info?.disk_total}</p>
-            <div className="space-y-1 pt-1">
-              <progress className={`progress w-full h-2 ${diskBar}`} value={diskPct} max="100" />
-              <p className="text-xs text-right text-base-content/40">{diskPct.toFixed(1)}%</p>
+            <p className="text-sm text-base-content/75 font-medium">{info?.disk_used} / {info?.disk_total}</p>
+            <div className="space-y-2 pt-2">
+              <progress className={`progress w-full h-2.5 ${diskBar}`} value={diskPct} max="100" />
+              <p className="text-sm text-right text-base-content/60 font-medium">{diskPct.toFixed(1)}%</p>
             </div>
           </div>
         </div>
@@ -180,10 +180,10 @@ export default function Dashboard() {
 
       {/* Live Memory Chart */}
       {chartData.length > 2 && (
-        <div className="rounded-2xl border border-base-300/40 bg-base-200/70 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <TbActivity size={18} className="text-violet-400" />
-            <span className="font-semibold text-sm">Memory Usage — Live</span>
+        <div className="rounded-2xl border border-base-300/40 bg-base-200/70 p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <TbActivity size={20} className="text-violet-400" />
+            <span className="font-bold text-base">Memory Usage — Live</span>
             <span className="badge badge-xs badge-ghost ml-auto animate-pulse">● LIVE</span>
           </div>
           <ResponsiveContainer width="100%" height={140}>
@@ -195,10 +195,10 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="t" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }} tickLine={false} axisLine={false} unit="%" />
+              <XAxis dataKey="t" tick={{ fontSize: 11, fill: "rgba(255,255,255,0.3)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "rgba(255,255,255,0.3)" }} tickLine={false} axisLine={false} unit="%" />
               <Tooltip
-                contentStyle={{ background: "rgba(20,20,30,0.85)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", fontSize: "11px" }}
+                contentStyle={{ background: "rgba(20,20,30,0.85)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", fontSize: "12px" }}
                 labelStyle={{ color: "rgba(255,255,255,0.6)" }}
                 formatter={(v: any) => [`${Number(v).toFixed(1)}%`, "Memory"]}
               />
@@ -211,15 +211,15 @@ export default function Dashboard() {
       {/* Updates */}
       {updates && (
         <div className={`relative rounded-2xl border overflow-hidden transition hover:brightness-105 ${updates.has_updates ? "border-warning/30 bg-warning/5" : "border-success/20 bg-success/5"}`}>
-          <div className="p-4 flex items-center gap-4">
-            <div className={`p-2 rounded-xl ${updates.has_updates ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
+          <div className="p-5 flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${updates.has_updates ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
               {updates.has_updates ? <TbAlertTriangle size={24} /> : <TbPackage size={24} />}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold">
+              <p className="font-bold text-base">
                 {updates.has_updates ? `${updates.count} update${updates.count > 1 ? "s" : ""} available` : "System is up to date"}
               </p>
-              <p className="text-xs text-base-content/50 mt-0.5">
+              <p className="text-sm text-base-content/60 mt-1 font-medium">
                 {updates.has_updates ? "Go to Packages to install" : `Based on ${info?.packages ?? 0} installed packages`}
               </p>
             </div>
